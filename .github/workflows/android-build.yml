@@ -30,8 +30,29 @@ jobs:
           touch .env
           echo "UNITY_GAME_ID=dummy" >> .env
 
+      - name: Prepare Android debug signing key
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair \
+              -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          # Also copy to rootDir just in case Gradle checks either location
+          cp "$HOME/.android/debug.keystore" ./debug.keystore
+
       - name: Build Debug APK with Gradle
-        run: ./gradlew assembleDebug --stacktrace
+        env:
+          JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
+        run: ./gradlew --no-daemon --no-configuration-cache assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
