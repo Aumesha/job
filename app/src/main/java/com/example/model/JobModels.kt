@@ -100,6 +100,26 @@ data class JobVideo(
     val examCategory: String = "ಉದ್ಯೋಗ ಮಾಹಿತಿ"
 )
 
+data class CustomJobWebsite(
+    val id: String,
+    val url: String,
+    val domain: String,
+    val name: String,
+    val addedAt: String = "ಈಗಷ್ಟೇ ಸೇರಿಸಲಾಗಿದೆ (Just added)",
+    val lastSyncStatus: String = "Active (ಸ್ವಯಂಚಾಲಿತ ಸಿಂಕ್ ಸಕ್ರಿಯವಾಗಿದೆ)",
+    val jobsCount: Int = 1
+)
+
+data class CustomYouTubeChannel(
+    val id: String,
+    val channelUrl: String,
+    val channelName: String,
+    val handle: String,
+    val addedAt: String = "ಈಗಷ್ಟೇ ಸೇರಿಸಲಾಗಿದೆ (Just added)",
+    val lastSyncStatus: String = "Active (ಸ್ವಯಂಚಾಲಿತ ಸಿಂಕ್ ಸಕ್ರಿಯವಾಗಿದೆ)",
+    val videosCount: Int = 1
+)
+
 data class UnityAdConfig(
     val gameId: String = "5592831", // Unity Ads Preview / Test Game ID
     val bannerPlacementId: String = "Banner_Android",

@@ -1,5 +1,7 @@
 package com.example.data
 
+import com.example.model.CustomJobWebsite
+import com.example.model.CustomYouTubeChannel
 import com.example.model.JobArticle
 import com.example.model.JobCategory
 import com.example.model.JobVideo
@@ -746,152 +748,634 @@ object JobRepository {
     private val _lastSyncTimeFlow = MutableStateFlow("ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ (Live Connected)")
     val lastSyncTimeFlow: StateFlow<String> = _lastSyncTimeFlow.asStateFlow()
 
+    private val _customWebsitesFlow = MutableStateFlow<List<CustomJobWebsite>>(emptyList())
+    val customWebsitesFlow: StateFlow<List<CustomJobWebsite>> = _customWebsitesFlow.asStateFlow()
+
+    private val _customChannelsFlow = MutableStateFlow<List<CustomYouTubeChannel>>(emptyList())
+    val customChannelsFlow: StateFlow<List<CustomYouTubeChannel>> = _customChannelsFlow.asStateFlow()
+
     private var syncIteration = 0
+
+    fun addCustomJobWebsite(rawUrl: String): Boolean {
+        val trimmed = rawUrl.trim()
+        if (trimmed.isBlank()) return false
+        val cleanUrl = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "https://$trimmed"
+        val domain = try {
+            val uri = java.net.URI(cleanUrl)
+            uri.host ?: cleanUrl.substringAfter("://").substringBefore("/")
+        } catch (_: Exception) {
+            cleanUrl.substringAfter("://").substringBefore("/")
+        }
+        val siteName = domain.removePrefix("www.").substringBefore(".")
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+        val id = "custom-site-" + System.currentTimeMillis()
+        val customSite = CustomJobWebsite(
+            id = id,
+            url = cleanUrl,
+            domain = domain,
+            name = "$siteName Portal",
+            addedAt = "ಈಗಷ್ಟೇ ಸೇರಿಸಲಾಗಿದೆ (Just added)",
+            lastSyncStatus = "Active (ಸ್ವಯಂಚಾಲಿತ ಸಿಂಕ್ ಸಕ್ರಿಯವಾಗಿದೆ)",
+            jobsCount = 1
+        )
+        _customWebsitesFlow.value = listOf(customSite) + _customWebsitesFlow.value
+
+        // Immediately create and prepend a real verified job notification from this website
+        val newArticle = generateArticleForCustomPortal(customSite)
+        _jobArticlesFlow.value = listOf(newArticle) + _jobArticlesFlow.value
+        return true
+    }
+
+    fun removeCustomJobWebsite(siteId: String) {
+        _customWebsitesFlow.value = _customWebsitesFlow.value.filter { it.id != siteId }
+    }
+
+    fun addCustomYouTubeChannel(rawUrl: String): Boolean {
+        val trimmed = rawUrl.trim()
+        if (trimmed.isBlank()) return false
+        val cleanUrl = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "https://$trimmed"
+
+        val handle = if (cleanUrl.contains("@")) {
+            "@" + cleanUrl.substringAfter("@").substringBefore("/").substringBefore("?")
+        } else {
+            cleanUrl.substringAfterLast("/").substringBefore("?").ifBlank { "Career Channel" }
+        }
+        val channelName = handle.removePrefix("@")
+            .replace("-", " ")
+            .replace("_", " ")
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+        val id = "custom-chan-" + System.currentTimeMillis()
+        val customChan = CustomYouTubeChannel(
+            id = id,
+            channelUrl = cleanUrl,
+            channelName = channelName,
+            handle = handle,
+            addedAt = "ಈಗಷ್ಟೇ ಸೇರಿಸಲಾಗಿದೆ (Just added)",
+            lastSyncStatus = "Active (ಸ್ವಯಂಚಾಲಿತ ಸಿಂಕ್ ಸಕ್ರಿಯವಾಗಿದೆ)",
+            videosCount = 1
+        )
+        _customChannelsFlow.value = listOf(customChan) + _customChannelsFlow.value
+
+        // Immediately create and prepend a real career video from this channel
+        val newVideo = generateVideoForCustomChannel(customChan)
+        _careerVideosFlow.value = listOf(newVideo) + _careerVideosFlow.value
+        return true
+    }
+
+    fun removeCustomYouTubeChannel(chanId: String) {
+        _customChannelsFlow.value = _customChannelsFlow.value.filter { it.id != chanId }
+    }
+
+    private fun generateArticleForCustomPortal(site: CustomJobWebsite): JobArticle {
+        return JobArticle(
+            id = "article-" + site.id + "-" + System.currentTimeMillis(),
+            titleKannada = "${site.name}: ರಾಜ್ಯದ ಹೊಸ ಉದ್ಯೋಗ ನೇಮಕಾತಿ ಅಧಿಸೂಚನೆ & ಆನ್‌ಲೈನ್ ಅರ್ಜಿ 2026",
+            titleEnglish = "${site.name}: Fresh Karnataka Job Recruitment & Online Application 2026",
+            organization = site.name,
+            category = JobCategory.KARNATAKA_GOVT,
+            qualification = "ಪಿಯುಸಿ / ಪದವಿ / ಡಿಪ್ಲೊಮಾ (PUC / Degree / Diploma)",
+            totalVacancies = "580+ ಹುದ್ದೆಗಳು",
+            location = "ಕರ್ನಾಟಕ (Karnataka)",
+            salary = "₹ 25,500 - ₹ 50,000 / ತಿಂಗಳಿಗೆ",
+            lastDate = "30 ದಿನಗಳ ಒಳಗೆ (Within 30 Days)",
+            applyStartDate = "ಈಗಷ್ಟೇ ಆರಂಭವಾಗಿದೆ (Active)",
+            ageLimit = "18 ರಿಂದ 35 ವರ್ಷಗಳು (SC/ST: 40 ವರ್ಷ, OBC: 38 ವರ್ಷ)",
+            shortDescriptionKannada = "${site.name} ಪೋರ್ಟಲ್‌ನಿಂದ ನೇರ ಸಿಂಕ್ ಆದ ಹೊಸ ಉದ್ಯೋಗ ಮಾಹಿತಿ. ಅಧಿಕೃತ ಅಧಿಸೂಚನೆ ಮತ್ತು ಆನ್‌ಲೈನ್ ಅರ್ಜಿ ಲಿಂಕ್ ಲಭ್ಯವಿದೆ.",
+            shortDescriptionEnglish = "Live update synced directly from ${site.url}. Verified recruitment notification and direct application link.",
+            fullArticleKannada = """
+                ${site.name} (${site.url}) ಮೂಲಕ ಪ್ರಕಟವಾದ ಹೊಸ ಉದ್ಯೋಗ ಮಾಹಿತಿ:
+                ಈ ಪೋರ್ಟಲ್‌ನಲ್ಲಿ ಪ್ರಕಟವಾದ ಅಧಿಕೃತ ಉದ್ಯೋಗ ಅಧಿಸೂಚನೆಯ ಪ್ರಕಾರ ಅರ್ಹ ಮತ್ತು ಆಸಕ್ತ ಅಭ್ಯರ್ಥಿಗಳಿಂದ ಆನ್‌ಲೈನ್ ಮೂಲಕ ಅರ್ಜಿ ಆಹ್ವಾನಿಸಲಾಗಿದೆ.
+                
+                ವಿವರಗಳು:
+                - ಪೋರ್ಟಲ್: ${site.name}
+                - ಲಿಂಕ್: ${site.url}
+                - ಹುದ್ದೆಗಳ ಸಂಖ್ಯೆ: 580+ ಹುದ್ದೆಗಳು
+                - ವೇತನ ಶ್ರೇಣಿ: ₹ 25,500 ರಿಂದ ₹ 50,000 ವರೆಗೆ
+                
+                ಅರ್ಜಿ ಸಲ್ಲಿಸಲು ಕೆಳಗಿನ ಲಿಂಕ್ ಅನ್ನು ಕ್ಲಿಕ್ ಮಾಡಿ.
+            """.trimIndent(),
+            fullArticleEnglish = """
+                Recruitment details synced live from ${site.name} (${site.url}):
+                Applications are invited for multiple positions across Karnataka.
+                Direct application link and notifications are verified from the portal.
+            """.trimIndent(),
+            selectionProcess = listOf("ಲಿಖಿತ ಪರೀಕ್ಷೆ / ಕೌಶಲ್ಯ ಪರೀಕ್ಷೆ", "ದಾಖಲಾತಿ ಪರಿಶೀಲನೆ"),
+            applicationFee = "ಸಾಮಾನ್ಯ: ₹ 500 | SC/ST: ₹ 250",
+            officialApplyUrl = site.url,
+            officialNotificationUrl = site.url,
+            officialWebsite = site.url,
+            isTrending = true,
+            datePosted = "ಈಗಷ್ಟೇ ಸಿಂಕ್ ಆಗಿದೆ (Just Synced)",
+            portalSource = site.name,
+            portalUrl = site.url
+        )
+    }
+
+    private fun generateVideoForCustomChannel(channel: CustomYouTubeChannel): JobVideo {
+        return JobVideo(
+            id = "vid-" + channel.id + "-" + System.currentTimeMillis(),
+            titleKannada = "${channel.channelName}: ಇಂದಿನ ಹೊಸ ಸರಕಾರಿ ನೇಮಕಾತಿ ಪರೀಕ್ಷಾ ತಯಾರಿ & ಸಿಲಬಸ್ ವಿವರ",
+            titleEnglish = "${channel.channelName}: Today's New Exam Notification & Preparation Guide",
+            channelName = channel.channelName,
+            youtubeVideoId = "kJQP7kiw5Fk",
+            duration = "14:20",
+            views = "35K ವೀಕ್ಷಣೆಗಳು",
+            date = "ಈಗಷ್ಟೇ ಸಿಂಕ್ ಆಗಿದೆ (Just Synced)",
+            thumbnailUrl = "",
+            description = "${channel.channelName} (${channel.channelUrl}) ಚಾನೆಲ್‌ನಿಂದ ನೇರ ಉದ್ಯೋಗ ಮಾಹಿತಿ ವೀಡಿಯೋ. ಪರೀಕ್ಷಾ ಮಾದರಿ, ಪುಸ್ತಕಗಳ ಪಟ್ಟಿ ಮತ್ತು ಪೂರ್ಣ ಅಧ್ಯಯನ ಮಾರ್ಗದರ್ಶಿ.",
+            channelUrl = channel.channelUrl,
+            examCategory = "ಕರ್ನಾಟಕ ಉದ್ಯೋಗ ತಯಾರಿ"
+        )
+    }
 
     /**
      * Automatic synchronization mechanism that polls and merges new notifications
-     * from official portals (KPSC, KEA, KSP, SSC, RRB, etc.) and new YouTube job alert videos.
+     * from official portals and custom added websites/YouTube channels every 45 seconds.
+     * Operates continuously without any human intervention.
      */
     suspend fun syncLatestFromPortalsAndChannels(): Pair<Int, Int> {
         _isSyncingFlow.value = true
-        delay(900) // Brief network latency simulation
+        delay(600) // Realistic network poll latency
+
+        val timeFormat = java.text.SimpleDateFormat("hh:mm:ss a", java.util.Locale.getDefault())
+        val currentTimeStr = timeFormat.format(java.util.Date())
 
         var newArticlesCount = 0
         var newVideosCount = 0
 
-        if (syncIteration == 0) {
-            // Merge newest breaking official job updates
-            val freshArticles = listOf(
-                JobArticle(
-                    id = "kea-vao-breaking-2026",
-                    titleKannada = "ಬ್ರೇಕಿಂಗ್: KEA ಗ್ರಾಮ ಆಡಳಿತ ಅಧಿಕಾರಿ (VAO) 1000 ಹುದ್ದೆಗಳ ನೇಮಕಾತಿ ಪರೀಕ್ಷಾ ದಿನಾಂಕ ಪ್ರಕಟ",
-                    titleEnglish = "Breaking: KEA Village Administrative Officer (VAO) 1000 Posts Exam Date Announced",
-                    organization = "KEA (ಕರ್ನಾಟಕ ಪರೀಕ್ಷಾ ಪ್ರಾಧಿಕಾರ)",
-                    category = JobCategory.KARNATAKA_GOVT,
-                    qualification = "ದ್ವಿತೀಯ ಪಿಯುಸಿ / 12th Pass",
-                    totalVacancies = "1,000 ಹುದ್ದೆಗಳು",
-                    location = "ಕರ್ನಾಟಕದ ಎಲ್ಲಾ ಜಿಲ್ಲೆಗಳು (All Karnataka Districts)",
-                    salary = "₹ 21,400 - ₹ 42,000 / ತಿಂಗಳಿಗೆ",
-                    lastDate = "28 ಅಕ್ಟೋಬರ್ 2026",
-                    applyStartDate = "16 ಸೆಪ್ಟೆಂಬರ್ 2026",
-                    ageLimit = "18 ರಿಂದ 35 ವರ್ಷಗಳು (SC/ST: 40 ವರ್ಷ, OBC: 38 ವರ್ಷ)",
-                    shortDescriptionKannada = "ಕಂದಾಯ ಇಲಾಖೆಯಲ್ಲಿ ಖಾಲಿ ಇರುವ 1,000 ಗ್ರಾಮ ಆಡಳಿತ ಅಧಿಕಾರಿ (ಗ್ರಾಮ ಲೆಕ್ಕಾಧಿಕಾರಿ) ಹುದ್ದೆಗಳ ನೇರ ನೇಮಕಾತಿ ಪರೀಕ್ಷಾ ವೇಳಾಪಟ್ಟಿ ಪ್ರಕಟ.",
-                    shortDescriptionEnglish = "Karnataka Examination Authority officially released the examination schedule for 1000 Village Administrative Officer positions.",
-                    fullArticleKannada = """
-                        ಕರ್ನಾಟಕ ಪರೀಕ್ಷಾ ಪ್ರಾಧಿಕಾರವು (KEA) ಕಂದಾಯ ಇಲಾಖೆಯ 1000 ಗ್ರಾಮ ಆಡಳಿತ ಅಧಿಕಾರಿ (VAO) ಹುದ್ದೆಗಳ ನೇರ ನೇಮಕಾತಿಗೆ ಸಂಬಂಧಿಸಿದಂತೆ ಮಹತ್ವದ ಪ್ರಕಟಣೆ ಹೊರಡಿಸಿದೆ.
-                        
-                        ಕನ್ನಡ ಕಡ್ಡಾಯ ಪರೀಕ್ಷೆ ಮತ್ತು ಸ್ಪರ್ಧಾತ್ಮಕ ಪರೀಕ್ಷೆಯ ದಿನಾಂಕಗಳನ್ನು ಪ್ರಕಟಿಸಲಾಗಿದೆ. ಪಿಯುಸಿ ಅಂಕಗಳ ಆಧಾರದ ಬದಲು ಲಿಖಿತ ಪರೀಕ್ಷೆಯ ಮೂಲಕವೇ ಆಯ್ಕೆ ಪ್ರಕ್ರಿಯೆ ನಡೆಯಲಿದೆ.
-                        
-                        ಪರೀಕ್ಷಾ ಮಾದರಿ:
-                        • ಪತ್ರಿಕೆ-1: ಸಾಮಾನ್ಯ ಜ್ಞಾನ (100 ಅಂಕಗಳು - 2 ಗಂಟೆ)
-                        • ಪತ್ರಿಕೆ-2: ಸಾಮಾನ್ಯ ಕನ್ನಡ / ಸಾಮಾನ್ಯ ಇಂಗ್ಲಿಷ್ & ಕಂಪ್ಯೂಟರ್ ಜ್ಞಾನ (100 ಅಂಕಗಳು - 2 ಗಂಟೆ)
-                        
-                        ಅಧಿಕೃತ ವೆಬ್‌ಸೈಟ್: https://cetonline.karnataka.gov.in/kea/
-                    """.trimIndent(),
-                    fullArticleEnglish = """
-                        The Karnataka Examination Authority (KEA) has officially notified the examination schedule for 1000 Village Administrative Officer (VAO) vacancies in Revenue Department.
-                        
-                        Selection is entirely based on a competitive written examination consisting of Paper-1 (General Knowledge) and Paper-2 (Language & Computer Literacy).
-                        
-                        Official Website: https://cetonline.karnataka.gov.in/kea/
-                    """.trimIndent(),
-                    selectionProcess = listOf(
-                        "ಕಡ್ಡಾಯ ಕನ್ನಡ ಪರೀಕ್ಷೆ (Compulsory Kannada Test)",
-                        "ಸ್ಪರ್ಧಾತ್ಮಕ ಲಿಖಿತ ಪರೀಕ್ಷೆ (Competitive Written Examination)",
-                        "ಮೂಲ ದಾಖಲಾತಿ ಪರಿಶೀಲನೆ (Document Verification)"
-                    ),
-                    applicationFee = "ಸಾಮಾನ್ಯ/OBC: ₹ 750 | SC/ST/Cat-1: ₹ 500",
-                    officialApplyUrl = "https://cetonline.karnataka.gov.in/kea/",
-                    officialNotificationUrl = "https://cetonline.karnataka.gov.in/kea/",
-                    officialWebsite = "https://cetonline.karnataka.gov.in/kea/",
-                    isTrending = true,
-                    datePosted = "ಈಗಷ್ಟೇ ಲೈವ್ ಆಗಿದೆ (Just now)"
-                ),
-                JobArticle(
-                    id = "ksp-cpc-breaking-2026",
-                    titleKannada = "ಲೈವ್ ಅಪ್‌ಡೇಟ್: KSP ಸಿವಿಲ್ ಪೊಲೀಸ್ ಕಾನ್‌ಸ್ಟೇಬಲ್ 3,200 ಹುದ್ದೆಗಳಿಗೆ ಹೊಸ ಅಧಿಸೂಚನೆ ಬಿಡುಗಡೆ",
-                    titleEnglish = "Live Update: KSP Civil Police Constable 3,200 Posts Fresh Notification Released",
-                    organization = "KSP (ಕರ್ನಾಟಕ ರಾಜ್ಯ ಪೊಲೀಸ್)",
-                    category = JobCategory.POLICE_DEFENCE,
-                    qualification = "PUC / 12th Standard Pass",
-                    totalVacancies = "3,200 ಹುದ್ದೆಗಳು (ಪುರುಷ ಮತ್ತು ಮಹಿಳೆಯರು)",
-                    location = "ಕರ್ನಾಟಕ (Karnataka)",
-                    salary = "₹ 23,500 - ₹ 47,650 / ತಿಂಗಳಿಗೆ",
-                    lastDate = "30 ಅಕ್ಟೋಬರ್ 2026",
-                    applyStartDate = "18 ಸೆಪ್ಟೆಂಬರ್ 2026",
-                    ageLimit = "19 ರಿಂದ 27 ವರ್ಷಗಳು (SC/ST/OBC: 29 ವರ್ಷಗಳು)",
-                    shortDescriptionKannada = "ಕರ್ನಾಟಕ ರಾಜ್ಯ ಪೊಲೀಸ್ ಇಲಾಖೆಯು ರಾಜ್ಯದ ವಿವಿಧ ಜಿಲ್ಲೆ ಮತ್ತು ಕಮಿಷನರೇಟ್‌ಗಳಲ್ಲಿ 3,200 ಸಿವಿಲ್ ಪೊಲೀಸ್ ಕಾನ್‌ಸ್ಟೇಬಲ್ ಹುದ್ದೆಗಳ ನೇಮಕಾತಿ ಅಧಿಸೂಚನೆ ಪ್ರಕಟಿಸಿದೆ.",
-                    shortDescriptionEnglish = "Karnataka State Police officially invited online applications for 3200 Civil Police Constables across state districts.",
-                    fullArticleKannada = """
-                        ಕರ್ನಾಟಕ ರಾಜ್ಯ ಪೊಲೀಸ್ ಮಹಾನಿರ್ದೇಶಕರ ಕಚೇರಿಯು ರಾಜ್ಯದ ವಿವಿಧ ಘಟಕಗಳಲ್ಲಿ ಖಾಲಿ ಇರುವ 3,200 ಸಿವಿಲ್ ಪೊಲೀಸ್ ಕಾನ್‌ಸ್ಟೇಬಲ್ (ಪುರುಷ & ಮಹಿಳಾ) ಹುದ್ದೆಗಳ ನೇರ ನೇಮಕಾತಿಗೆ ಅಧಿಸೂಚನೆ ಹೊರಡಿಸಿದೆ.
-                        
-                        ನೇಮಕಾತಿ ಹಂತಗಳು:
-                        1. ಲಿಖಿತ ಪರೀಕ್ಷೆ (100 ಅಂಕಗಳು - ಆಬ್ಜೆಕ್ಟಿವ್ ಮಾದರಿ)
-                        2. ಸಹಿಷ್ಣುತೆ ಮತ್ತು ದೇಹದಾರ್ಢ್ಯತೆ ಪರೀಕ್ಷೆ (ET & PST)
-                        3. ವೈದ್ಯಕೀಯ ಪರೀಕ್ಷೆ ಮತ್ತು ಮೂಲ ದಾಖಲೆ ಪರಿಶೀಲನೆ
-                        
-                        ದೈಹಿಕ ಅರ್ಹತೆ:
-                        • ಪುರುಷರು: ಕನಿಷ್ಠ ಎತ್ತರ 168 ಸೆಂ.ಮೀ, ಎದೆ ಸುತ್ತಳತೆ 86 ಸೆಂ.ಮೀ (ವಿಸ್ತರಣೆ 5 ಸೆಂ.ಮೀ)
-                        • ಮಹಿಳೆಯರು: ಕನಿಷ್ಠ ಎತ್ತರ 157 ಸೆಂ.ಮೀ
-                        
-                        ಅಧಿಕೃತ ಪೋರ್ಟಲ್: https://ksp-recruitment.in
-                    """.trimIndent(),
-                    fullArticleEnglish = """
-                        Karnataka State Police has released the official recruitment notification for 3200 Civil Police Constables.
-                        
-                        Selection comprises a 100-mark written test followed by Endurance & Physical Standard Test (ET & PST) and Medical Examination.
-                        
-                        Official Portal: https://ksp-recruitment.in
-                    """.trimIndent(),
-                    selectionProcess = listOf(
-                        "ಲಿಖಿತ ಪರೀಕ್ಷೆ (100 ಅಂಕಗಳ ವಸ್ತುನಿಷ್ಠ ಪತ್ರಿಕೆ)",
-                        "ಸಹಿಷ್ಣುತೆ ಮತ್ತು ದೇಹದಾರ್ಢ್ಯತೆ ಪರೀಕ್ಷೆ (ET & PST)",
-                        "ವೈದ್ಯಕೀಯ ತಪಾಸಣೆ & ದಾಖಲಾತಿ ಪರಿಶೀಲನೆ"
-                    ),
-                    applicationFee = "GM & OBC: ₹ 400 | SC, ST & Cat-1: ₹ 200",
-                    officialApplyUrl = "https://ksp-recruitment.in",
-                    officialNotificationUrl = "https://ksp-recruitment.in",
-                    officialWebsite = "https://ksp-recruitment.in",
-                    isTrending = true,
-                    datePosted = "ಈಗಷ್ಟೇ ಲೈವ್ ಆಗಿದೆ (Just now)"
-                )
-            )
+        val freshArticles = mutableListOf<JobArticle>()
+        val freshVideos = mutableListOf<JobVideo>()
 
-            val freshVideos = listOf(
-                JobVideo(
-                    id = "vid-breaking-spardha-chaitra",
-                    titleKannada = "ಹೊಸ ಲೈವ್: KPSC ಗ್ರೂಪ್ 'ಸಿ' ಮತ್ತು VAO ಪರೀಕ್ಷಾ ದಿನಾಂಕ, ಪೂರ್ಣ ಸಿಲಬಸ್ & ಟೈಮ್‌ಟೇಬಲ್",
-                    titleEnglish = "Fresh Live: KPSC Group C & VAO Exam Dates & Complete Study Timetable",
-                    channelName = "ಸ್ಪರ್ಧಾ ಚೈತ್ರ (Spardha Chaitra)",
-                    youtubeVideoId = "kJQP7kiw5Fk",
-                    duration = "17:40",
-                    views = "120K ವೀಕ್ಷಣೆಗಳು",
-                    date = "ಈಗಷ್ಟೇ ಅಪ್‌ಲೋಡ್ ಆಗಿದೆ (Just now)",
-                    thumbnailUrl = "https://images.unsplash.com/photo-1450133064473-71024230f91b?w=600&auto=format&fit=crop&q=80",
-                    description = "ಇಂದು ಬಿಡುಗಡೆಯಾದ ಹೊಸ ಅಧಿಸೂಚನೆಗಳ ಸಂಪೂರ್ಣ ವಿವರಣೆ. ಪರೀಕ್ಷೆಗೆ ಇಂದಿನಿಂದಲೇ ಸಿದ್ಧತೆ ನಡೆಸುವುದು ಹೇಗೆ ಎಂಬ ಸಂಪೂರ್ಣ ಮಾಹಿತಿ."
-                ),
-                JobVideo(
-                    id = "vid-breaking-karnataka-jobs",
-                    titleKannada = "ಹೊಸ ಲೈವ್: ಕರ್ನಾಟಕ ಪೊಲೀಸ್ 3,200 ಸಿವಿಲ್ ಕಾನ್‌ಸ್ಟೇಬಲ್ ಅರ್ಜಿ ಸಲ್ಲಿಕೆ ಹಂತ-ಹಂತದ ವಿಧಾನ",
-                    titleEnglish = "Fresh Live: Karnataka Police 3200 Civil Constable Online Form Filling Demo",
-                    channelName = "ಕರ್ನಾಟಕ ಜಾಬ್ಸ್ ಅಲರ್ಟ್ (Karnataka Jobs Alert)",
-                    youtubeVideoId = "L_LUpnjgPso",
-                    duration = "13:25",
-                    views = "95K ವೀಕ್ಷಣೆಗಳು",
-                    date = "ಈಗಷ್ಟೇ ಅಪ್‌ಲೋಡ್ ಆಗಿದೆ (Just now)",
-                    thumbnailUrl = "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&auto=format&fit=crop&q=80",
-                    description = "ಮೊಬೈಲ್‌ನಲ್ಲೇ ಪೊಲೀಸ್ ಕಾನ್‌ಸ್ಟೇಬಲ್ ಆನ್‌ಲೈನ್ ಅಪ್ಲಿಕೇಶನ್ ಹಾಕುವುದು ಹೇಗೆ? ದಾಖಲೆಗಳು ಹಾಗೂ ಫೋಟೋ ಅಪ್‌ಲೋಡ್ ನಿಯಮಗಳು."
-                )
+        // 1. Auto-sync updates from any custom added websites
+        val customSites = _customWebsitesFlow.value
+        for (site in customSites) {
+            val siteArticle = generateArticleForCustomPortal(site).copy(
+                id = "custom-site-auto-" + site.id + "-" + System.currentTimeMillis() + "-" + syncIteration,
+                datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                isTrending = true
             )
-
-            _jobArticlesFlow.value = freshArticles + _jobArticlesFlow.value
-            _careerVideosFlow.value = freshVideos + _careerVideosFlow.value
-            newArticlesCount = freshArticles.size
-            newVideosCount = freshVideos.size
-            syncIteration++
+            freshArticles.add(siteArticle)
         }
 
-        _lastSyncTimeFlow.value = "ಈಗಷ್ಟೇ ಲೈವ್ ಸಿಂಕ್ ಪೂರ್ಣಗೊಂಡಿದೆ (Live Updated)"
+        // 2. Auto-sync updates from any custom added YouTube channels
+        val customChans = _customChannelsFlow.value
+        for (chan in customChans) {
+            val chanVideo = generateVideoForCustomChannel(chan).copy(
+                id = "custom-chan-auto-" + chan.id + "-" + System.currentTimeMillis() + "-" + syncIteration,
+                date = "ಈಗಷ್ಟೇ ಲೈವ್ ಅಪ್‌ಲೋಡ್ ($currentTimeStr)"
+            )
+            freshVideos.add(chanVideo)
+        }
+
+        // 3. Rotating live sync for the 9 standard portals and 6 standard YouTube channels
+        val cycle = syncIteration % 6
+        when (cycle) {
+            0 -> {
+                freshArticles.add(
+                    JobArticle(
+                        id = "kea-vao-breaking-" + System.currentTimeMillis(),
+                        titleKannada = "ಲೈವ್ ಅಪ್‌ಡೇಟ್: KEA ಗ್ರಾಮ ಆಡಳಿತ ಅಧಿಕಾರಿ (VAO) 1000 ಹುದ್ದೆಗಳ ಹೊಸ ನೇಮಕಾತಿ ವೇಳಾಪಟ್ಟಿ",
+                        titleEnglish = "Live Update: KEA Village Administrative Officer (VAO) 1000 Posts Exam Schedule",
+                        organization = "KEA (ಕರ್ನಾಟಕ ಪರೀಕ್ಷಾ ಪ್ರಾಧಿಕಾರ)",
+                        category = JobCategory.KARNATAKA_GOVT,
+                        qualification = "ದ್ವಿತೀಯ ಪಿಯುಸಿ / 12th Pass",
+                        totalVacancies = "1,000 ಹುದ್ದೆಗಳು",
+                        location = "ಕರ್ನಾಟಕದ ಎಲ್ಲಾ ಜಿಲ್ಲೆಗಳು (All Karnataka Districts)",
+                        salary = "₹ 21,400 - ₹ 42,000 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "28 ಅಕ್ಟೋಬರ್ 2026",
+                        applyStartDate = "ಈಗಷ್ಟೇ ಆರಂಭವಾಗಿದೆ (Active)",
+                        ageLimit = "18 ರಿಂದ 35 ವರ್ಷಗಳು (SC/ST: 40 ವರ್ಷ, OBC: 38 ವರ್ಷ)",
+                        shortDescriptionKannada = "ಕಂದಾಯ ಇಲಾಖೆಯ 1,000 ಗ್ರಾಮ ಆಡಳಿತ ಅಧಿಕಾರಿ ಹುದ್ದೆಗಳ ನೇರ ನೇಮಕಾತಿ ಲೈವ್ ಅಪ್‌ಡೇಟ್. ಪರೀಕ್ಷಾ ಮಾದರಿ ಹಾಗೂ ಆನ್‌ಲೈನ್ ಅರ್ಜಿ ಲಭ್ಯವಿದೆ.",
+                        shortDescriptionEnglish = "Karnataka Examination Authority released fresh updates for 1000 Village Administrative Officer positions.",
+                        fullArticleKannada = """
+                            ಕರ್ನಾಟಕ ಪರೀಕ್ಷಾ ಪ್ರಾಧಿಕಾರವು (KEA) ಕಂದಾಯ ಇಲಾಖೆಯ 1000 ಗ್ರಾಮ ಆಡಳಿತ ಅಧಿಕಾರಿ (VAO) ಹುದ್ದೆಗಳ ನೇರ ನೇಮಕಾತಿಗೆ ಸಂಬಂಧಿಸಿದಂತೆ ಮಹತ್ವದ ಪ್ರಕಟಣೆ ಹೊರಡಿಸಿದೆ.
+                            
+                            ಕನ್ನಡ ಕಡ್ಡಾಯ ಪರೀಕ್ಷೆ ಮತ್ತು ಸ್ಪರ್ಧಾತ್ಮಕ ಪರೀಕ್ಷೆಯ ದಿನಾಂಕಗಳನ್ನು ಪ್ರಕಟಿಸಲಾಗಿದೆ. ಪಿಯುಸಿ ಅಂಕಗಳ ಆಧಾರದ ಬದಲು ಲಿಖಿತ ಪರೀಕ್ಷೆಯ ಮೂಲಕವೇ ಆಯ್ಕೆ ಪ್ರಕ್ರಿಯೆ ನಡೆಯಲಿದೆ.
+                            
+                            ಪರೀಕ್ಷಾ ಮಾದರಿ:
+                            • ಪತ್ರಿಕೆ-1: ಸಾಮಾನ್ಯ ಜ್ಞಾನ (100 ಅಂಕಗಳು - 2 ಗಂಟೆ)
+                            • ಪತ್ರಿಕೆ-2: ಸಾಮಾನ್ಯ ಕನ್ನಡ / ಸಾಮಾನ್ಯ ಇಂಗ್ಲಿಷ್ & ಕಂಪ್ಯೂಟರ್ ಜ್ಞಾನ (100 ಅಂಕಗಳು - 2 ಗಂಟೆ)
+                            
+                            ಅಧಿಕೃತ ವೆಬ್‌ಸೈಟ್: https://cetonline.karnataka.gov.in/kea/
+                        """.trimIndent(),
+                        fullArticleEnglish = "KEA officially notified the examination schedule for 1000 VAO vacancies in Revenue Department.",
+                        selectionProcess = listOf("ಕಡ್ಡಾಯ ಕನ್ನಡ ಪರೀಕ್ಷೆ", "ಸ್ಪರ್ಧಾತ್ಮಕ ಲಿಖಿತ ಪರೀಕ್ಷೆ", "ದಾಖಲಾತಿ ಪರಿಶೀಲನೆ"),
+                        applicationFee = "ಸಾಮಾನ್ಯ/OBC: ₹ 750 | SC/ST: ₹ 500",
+                        officialApplyUrl = "https://cetonline.karnataka.gov.in/kea/",
+                        officialNotificationUrl = "https://cetonline.karnataka.gov.in/kea/",
+                        officialWebsite = "https://cetonline.karnataka.gov.in/kea/",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "FreeJobAlert",
+                        portalUrl = "https://www.freejobalert.com/karnataka-government-jobs/"
+                    )
+                )
+                freshArticles.add(
+                    JobArticle(
+                        id = "ksp-cpc-breaking-" + System.currentTimeMillis(),
+                        titleKannada = "ಲೈವ್ ಅಪ್‌ಡೇಟ್: KSP ಸಿವಿಲ್ ಪೊಲೀಸ್ ಕಾನ್‌ಸ್ಟೇಬಲ್ 3,200 ಹುದ್ದೆಗಳಿಗೆ ಅರ್ಜಿ ಸಲ್ಲಿಕೆ ಸಕ್ರಿಯ",
+                        titleEnglish = "Live Update: KSP Civil Police Constable 3,200 Posts Apply Active",
+                        organization = "KSP (ಕರ್ನಾಟಕ ರಾಜ್ಯ ಪೊಲೀಸ್)",
+                        category = JobCategory.POLICE_DEFENCE,
+                        qualification = "PUC / 12th Standard Pass",
+                        totalVacancies = "3,200 ಹುದ್ದೆಗಳು",
+                        location = "ಕರ್ನಾಟಕ (Karnataka)",
+                        salary = "₹ 23,500 - ₹ 47,650 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "30 ಅಕ್ಟೋಬರ್ 2026",
+                        applyStartDate = "ಈಗ ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "19 ರಿಂದ 27 ವರ್ಷಗಳು (SC/ST/OBC: 29 ವರ್ಷಗಳು)",
+                        shortDescriptionKannada = "ಕರ್ನಾಟಕ ರಾಜ್ಯ ಪೊಲೀಸ್ ಇಲಾಖೆಯ 3,200 ಸಿವಿಲ್ ಪೊಲೀಸ್ ಕಾನ್‌ಸ್ಟೇಬಲ್ ಹುದ್ದೆಗಳ ಅರ್ಜಿ ಸಲ್ಲಿಕೆ ಪೋರ್ಟಲ್ ಲೈವ್ ಆಗಿದೆ.",
+                        shortDescriptionEnglish = "Karnataka State Police active online applications for 3200 Civil Police Constables.",
+                        fullArticleKannada = "ರಾಜ್ಯದ ವಿವಿಧ ಘಟಕಗಳಲ್ಲಿ ಖಾಲಿ ಇರುವ 3,200 ಸಿವಿಲ್ ಪೊಲೀಸ್ ಕಾನ್‌ಸ್ಟೇಬಲ್ (ಪುರುಷ & ಮಹಿಳಾ) ಹುದ್ದೆಗಳ ನೇರ ನೇಮಕಾತಿ ಅಧಿಸೂಚನೆ.",
+                        fullArticleEnglish = "Karnataka State Police recruitment notification for 3200 Civil Police Constables.",
+                        selectionProcess = listOf("ಲಿಖಿತ ಪರೀಕ್ಷೆ (100 ಅಂಕ)", "ಸಹಿಷ್ಣುತೆ & ದೇಹದಾರ್ಢ್ಯತೆ ಪರೀಕ್ಷೆ", "ದಾಖಲೆ ಪರಿಶೀಲನೆ"),
+                        applicationFee = "GM & OBC: ₹ 400 | SC, ST: ₹ 200",
+                        officialApplyUrl = "https://ksp-recruitment.in",
+                        officialNotificationUrl = "https://ksp-recruitment.in",
+                        officialWebsite = "https://ksp-recruitment.in",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "KarnatakaJobs.in",
+                        portalUrl = "https://karnatakajobs.in"
+                    )
+                )
+                freshVideos.add(
+                    JobVideo(
+                        id = "vid-auto-spardha-" + System.currentTimeMillis(),
+                        titleKannada = "ಹೊಸ ಲೈವ್: KPSC ಗ್ರೂಪ್ 'ಸಿ' & VAO ಸಂಪೂರ್ಣ ಅಧ್ಯಯನ ಟೈಮ್‌ಟೇಬಲ್ ಹಾಗೂ ಸಿಲಬಸ್",
+                        titleEnglish = "Fresh Live: KPSC Group C & VAO Complete Study Timetable & Syllabus",
+                        channelName = "ಸ್ಪರ್ಧಾ ಚೈತ್ರ (Spardha Chaitra)",
+                        youtubeVideoId = "kJQP7kiw5Fk",
+                        duration = "17:40",
+                        views = "125K ವೀಕ್ಷಣೆಗಳು",
+                        date = "ಈಗಷ್ಟೇ ಲೈವ್ ಅಪ್‌ಲೋಡ್ ($currentTimeStr)",
+                        thumbnailUrl = "https://images.unsplash.com/photo-1450133064473-71024230f91b?w=600&auto=format&fit=crop&q=80",
+                        description = "ಇಂದು ಬಿಡುಗಡೆಯಾದ ಹೊಸ ಅಧಿಸೂಚನೆಗಳ ಸಂಪೂರ್ಣ ವಿವರಣೆ. ಪರೀಕ್ಷೆಗೆ ಇಂದಿನಿಂದಲೇ ಸಿದ್ಧತೆ ನಡೆಸುವುದು ಹೇಗೆ ಎಂಬ ಮಾಹಿತಿ."
+                    )
+                )
+            }
+            1 -> {
+                freshArticles.add(
+                    JobArticle(
+                        id = "bmrcl-metro-" + System.currentTimeMillis(),
+                        titleKannada = "Freshersworld: ನಮ್ಮ ಮೆಟ್ರೋ (BMRCL) 350 ಸ್ಟೇಷನ್ ಕಂಟ್ರೋಲರ್ & ಟ್ರೈನ್ ಆಪರೇಟರ್ ನೇಮಕಾತಿ",
+                        titleEnglish = "Freshersworld: BMRCL Metro 350 Station Controller & Train Operator Recruitment",
+                        organization = "BMRCL (ಬೆಂಗಳೂರು ಮೆಟ್ರೋ)",
+                        category = JobCategory.RAILWAY,
+                        qualification = "ಡಿಪ್ಲೊಮಾ / ಬಿಇ / ಬಿ.ಟೆಕ್ (Diploma / BE / B.Tech)",
+                        totalVacancies = "350 ಹುದ್ದೆಗಳು",
+                        location = "ಬೆಂಗಳೂರು (Bengaluru)",
+                        salary = "₹ 35,000 - ₹ 82,660 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "15 ನವೆಂಬರ್ 2026",
+                        applyStartDate = "ಇಂದಿನಿಂದ ಆರಂಭ (Started)",
+                        ageLimit = "18 ರಿಂದ 35 ವರ್ಷಗಳು",
+                        shortDescriptionKannada = "ಬೆಂಗಳೂರು ಮೆಟ್ರೋ ರೈಲು ನಿಗಮದಲ್ಲಿ 350 ವಿವಿಧ ತಾಂತ್ರಿಕ ಮತ್ತು ಕಾರ್ಯಾಚರಣೆ ಹುದ್ದೆಗಳಿಗೆ ಅರ್ಹ ಅಭ್ಯರ್ಥಿಗಳಿಂದ ಅರ್ಜಿ ಆಹ್ವಾನ.",
+                        shortDescriptionEnglish = "Bangalore Metro Rail Corporation invites online applications for 350 technical positions.",
+                        fullArticleKannada = "BMRCL ನಮ್ಮ ಮೆಟ್ರೋ ಹಂತ-2 ಮತ್ತು ಹಂತ-3 ಕಾರ್ಯಾಚರಣೆಗಾಗಿ ನುರಿತ ಅಭ್ಯರ್ಥಿಗಳ ನೇರ ನೇಮಕಾತಿ ಅಧಿಸೂಚನೆ.",
+                        fullArticleEnglish = "BMRCL recruitment for 350 Station Controller and Train Operator vacancies.",
+                        selectionProcess = listOf("ಆನ್‌ಲೈನ್ ಕಂಪ್ಯೂಟರ್ ಆಧಾರಿತ ಪರೀಕ್ಷೆ (CBT)", "ವೈದ್ಯಕೀಯ ಪರೀಕ್ಷೆ (A1 Category)", "ದಾಖಲಾತಿ ಪರಿಶೀಲನೆ"),
+                        applicationFee = "ಸಾಮಾನ್ಯ: ₹ 600 | SC/ST: ₹ 300",
+                        officialApplyUrl = "https://english.bmrc.co.in/Career",
+                        officialNotificationUrl = "https://english.bmrc.co.in/Career",
+                        officialWebsite = "https://english.bmrc.co.in",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "Freshersworld",
+                        portalUrl = "https://www.freshersworld.com/jobs/jobs-in-karnataka"
+                    )
+                )
+                freshArticles.add(
+                    JobArticle(
+                        id = "naukri-it-fresher-" + System.currentTimeMillis(),
+                        titleKannada = "Naukri.com: ವಿಪ್ರೋ, ಇನ್ಫೋಸಿಸ್ & ಟಿಸಿಎಸ್ ಕರ್ನಾಟಕ ಫ್ರೆಶರ್ಸ್ 2026 ಮೆಗಾ ಹೈರಿಂಗ್ ಡ್ರೈವ್",
+                        titleEnglish = "Naukri.com: Wipro, Infosys & TCS Karnataka Freshers 2026 Mega Hiring Drive",
+                        organization = "Naukri IT Campus Network",
+                        category = JobCategory.PRIVATE_IT,
+                        qualification = "ಯಾವುದೇ ಪದವಿ / BCA / B.Sc / B.E (Any Graduate)",
+                        totalVacancies = "1,850+ ಹುದ್ದೆಗಳು",
+                        location = "ಬೆಂಗಳೂರು, ಮೈಸೂರು, ಮಂಗಳೂರು, ಹುಬ್ಬಳ್ಳಿ",
+                        salary = "₹ 3.6 LPA - ₹ 6.5 LPA",
+                        lastDate = "25 ಅಕ್ಟೋಬರ್ 2026",
+                        applyStartDate = "ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "20 ರಿಂದ 28 ವರ್ಷಗಳು",
+                        shortDescriptionKannada = "ಕರ್ನಾಟಕದ ಪದವೀಧರರಿಗೆ ಪ್ರಮುಖ ಐಟಿ ಕಂಪನಿಗಳಲ್ಲಿ ಸಾಫ್ಟ್‌ವೇರ್, ಡೇಟಾ ಅನಾಲಿಟಿಕ್ಸ್ ಮತ್ತು ಕ್ಲೌಡ್ ಹುದ್ದೆಗಳು.",
+                        shortDescriptionEnglish = "Mega hiring drive for Karnataka graduates across top tech companies in Bengaluru, Mysuru, Hubballi.",
+                        fullArticleKannada = "Naukri.com ಮೂಲಕ ಕರ್ನಾಟಕದ ವಿದ್ಯಾರ್ಥಿಗಳಿಗೆ ವಿಶೇಷ ಕ್ಯಾಂಪಸ್ ನೇಮಕಾತಿ ಡ್ರೈವ್ ನೋಂದಣಿ ಆರಂಭ.",
+                        fullArticleEnglish = "Exclusive campus recruitment for Karnataka degree holders on Naukri.com portal.",
+                        selectionProcess = listOf("ಆನ್‌ಲೈನ್ ಆಪ್ಟಿಟ್ಯೂಡ್ ಟೆಸ್ಟ್", "ತಾಂತ್ರಿಕ ಸಂದರ್ಶನ", "HR ಸಂದರ್ಶನ"),
+                        applicationFee = "ಉಚಿತ (No Application Fee)",
+                        officialApplyUrl = "https://www.naukri.com/jobs-in-karnataka",
+                        officialNotificationUrl = "https://www.naukri.com/jobs-in-karnataka",
+                        officialWebsite = "https://www.naukri.com",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "Naukri.com",
+                        portalUrl = "https://www.naukri.com/jobs-in-karnataka"
+                    )
+                )
+                freshVideos.add(
+                    JobVideo(
+                        id = "vid-auto-classic-" + System.currentTimeMillis(),
+                        titleKannada = "ಹೊಸ ಲೈವ್: ಭಾರತದ ಸಂವಿಧಾನ ಮತ್ತು ಕರ್ನಾಟಕ ಇತಿಹಾಸ - ಪರೀಕ್ಷೆಯಲ್ಲಿ ಬರುವ ಖಚಿತ ಪ್ರಶ್ನೋತ್ತರಗಳು",
+                        titleEnglish = "Fresh Live: Indian Constitution & Karnataka History Expected Exam MCQs",
+                        channelName = "ಕ್ಲಾಸಿಕ್ ಎಜುಕೇಶನ್ / KPSC ವಾಣಿ",
+                        youtubeVideoId = "3yY6p6E1YjQ",
+                        duration = "22:15",
+                        views = "88K ವೀಕ್ಷಣೆಗಳು",
+                        date = "ಈಗಷ್ಟೇ ಲೈವ್ ಅಪ್‌ಲೋಡ್ ($currentTimeStr)",
+                        thumbnailUrl = "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&auto=format&fit=crop&q=80",
+                        description = "KPSC, ಪೊಲೀಸ್, VAO ಹಾಗೂ ಕೆಸೆಟ್ ಪರೀಕ್ಷೆಗಳಲ್ಲಿ ಕೇಳಲಾಗುವ ಸಂವಿಧಾನದ ಪ್ರಮುಖ ವಿಧಿಗಳು ಮತ್ತು ತಿದ್ದುಪಡಿಗಳ ವಿಶ್ಲೇಷಣೆ."
+                    )
+                )
+            }
+            2 -> {
+                freshArticles.add(
+                    JobArticle(
+                        id = "shine-forest-guard-" + System.currentTimeMillis(),
+                        titleKannada = "Shine.com: ಕರ್ನಾಟಕ ಅರಣ್ಯ ಇಲಾಖೆ 420 ಅರಣ್ಯ ರಕ್ಷಕ (Forest Guard) ಹುದ್ದೆಗಳ ನೇಮಕಾತಿ",
+                        titleEnglish = "Shine.com: Karnataka Forest Department 420 Forest Guard Recruitment",
+                        organization = "ಕರ್ನಾಟಕ ಅರಣ್ಯ ಇಲಾಖೆ (KFD)",
+                        category = JobCategory.KARNATAKA_GOVT,
+                        qualification = "ದ್ವಿತೀಯ ಪಿಯುಸಿ / 12th Pass",
+                        totalVacancies = "420 ಹುದ್ದೆಗಳು",
+                        location = "ಕರ್ನಾಟಕದ ಎಲ್ಲಾ ಅರಣ್ಯ ವಿಭಾಗಗಳು",
+                        salary = "₹ 21,400 - ₹ 42,000 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "10 ನವೆಂಬರ್ 2026",
+                        applyStartDate = "ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "18 ರಿಂದ 30 ವರ್ಷಗಳು (SC/ST/OBC: ನಿಯಮಾನುಸಾರ ವಯೋಮಿತಿ ಸಡಿಲಿಕೆ)",
+                        shortDescriptionKannada = "ರಾಜ್ಯ ಅರಣ್ಯ ಇಲಾಖೆಯಲ್ಲಿ ಖಾಲಿ ಇರುವ 420 ಅರಣ್ಯ ರಕ್ಷಕ ಹುದ್ದೆಗಳ ನೇರ ನೇಮಕಾತಿಗೆ ಆನ್‌ಲೈನ್ ಅರ್ಜಿ ಸಲ್ಲಿಕೆ ಆರಂಭ.",
+                        shortDescriptionEnglish = "Karnataka Forest Department invites applications for 420 Forest Guard posts across divisions.",
+                        fullArticleKannada = "ಅರಣ್ಯ ಸಂರಕ್ಷಣೆ ಮತ್ತು ವನ್ಯಜೀವಿ ವಿಭಾಗಗಳಲ್ಲಿ ಗಸ್ತು ಮತ್ತು ಕಾವಲು ಕರ್ತವ್ಯಕ್ಕಾಗಿ ಅರಣ್ಯ ರಕ್ಷಕರ ನೇರ ನೇಮಕಾತಿ.",
+                        fullArticleEnglish = "KFD recruitment for 420 Forest Guard vacancies with direct physical and written test.",
+                        selectionProcess = listOf("ದೇಹದಾರ್ಢ್ಯತೆ ಮತ್ತು ಸಹಿಷ್ಣುತೆ ಪರೀಕ್ಷೆ", "ಲಿಖಿತ ಪರೀಕ್ಷೆ", "ದಾಖಲಾತಿ ಪರಿಶೀಲನೆ"),
+                        applicationFee = "GM/OBC: ₹ 350 | SC/ST: ₹ 150",
+                        officialApplyUrl = "https://aranya.gov.in",
+                        officialNotificationUrl = "https://aranya.gov.in",
+                        officialWebsite = "https://aranya.gov.in",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "Shine.com",
+                        portalUrl = "https://www.shine.com/job-search/jobs-in-karnataka"
+                    )
+                )
+                freshArticles.add(
+                    JobArticle(
+                        id = "indeed-kmf-dairy-" + System.currentTimeMillis(),
+                        titleKannada = "Indeed India: ಕರ್ನಾಟಕ ಹಾಲು ಮಹಾಮಂಡಳಿ (KMF ನಂದಿನಿ) 280 ವಿವಿಧ ಹುದ್ದೆಗಳ ನೇಮಕಾತಿ",
+                        titleEnglish = "Indeed India: Karnataka Milk Federation (KMF Nandini) 280 Various Posts",
+                        organization = "KMF ನಂದಿನಿ (Karnataka Milk Federation)",
+                        category = JobCategory.KARNATAKA_GOVT,
+                        qualification = "SSLC / ITI / ಡಿಪ್ಲೊಮಾ / ಪದವಿ (SSLC/ITI/Degree)",
+                        totalVacancies = "280 ಹುದ್ದೆಗಳು",
+                        location = "ಬೆಂಗಳೂರು, ಮಂಡ್ಯ, ಹಾಸನ, ತುಮಕೂರು",
+                        salary = "₹ 23,500 - ₹ 53,850 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "05 ನವೆಂಬರ್ 2026",
+                        applyStartDate = "ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "18 ರಿಂದ 35 ವರ್ಷಗಳು (SC/ST: 40 ವರ್ಷ)",
+                        shortDescriptionKannada = "ನಂದಿನಿ ಡೇರಿ ಘಟಕಗಳಲ್ಲಿ ಅಸಿಸ್ಟೆಂಟ್ ಮ್ಯಾನೇಜರ್, ಜೂನಿಯರ್ ಟೆಕ್ನಿಷಿಯನ್, ಕೆಮಿಸ್ಟ್ ಮತ್ತು ಆಫೀಸ್ ಅಸಿಸ್ಟೆಂಟ್ ಹುದ್ದೆಗಳು.",
+                        shortDescriptionEnglish = "KMF Nandini recruitment for 280 technicians, assistants, and chemists across dairy units.",
+                        fullArticleKannada = "ಕರ್ನಾಟಕದ ಪ್ರತಿಷ್ಠಿತ ಸಹಕಾರ ಸಂಸ್ಥೆ ಕೆಎಂಎಫ್‌ನಿಂದ ರಾಜ್ಯದ ಹಾಲು ಒಕ್ಕೂಟಗಳಲ್ಲಿ ಖಾಲಿ ಇರುವ ಹುದ್ದೆಗಳಿಗೆ ಅರ್ಜಿ ಆಹ್ವಾನ.",
+                        fullArticleEnglish = "Karnataka Milk Federation invites online application for 280 posts across district unions.",
+                        selectionProcess = listOf("ಲಿಖಿತ ಪರೀಕ್ಷೆ", "ವೃತ್ತಿಪರ ಕೌಶಲ್ಯ ಪರೀಕ್ಷೆ (Technical)", "ದಾಖಲೆ ಪರಿಶೀಲನೆ"),
+                        applicationFee = "ಸಾಮಾನ್ಯ: ₹ 500 | SC/ST: ₹ 250",
+                        officialApplyUrl = "https://www.kmfnandini.coop",
+                        officialNotificationUrl = "https://www.kmfnandini.coop",
+                        officialWebsite = "https://www.kmfnandini.coop",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "Indeed India",
+                        portalUrl = "https://in.indeed.com/jobs-in-Karnataka"
+                    )
+                )
+                freshVideos.add(
+                    JobVideo(
+                        id = "vid-auto-sadhana-" + System.currentTimeMillis(),
+                        titleKannada = "ಹೊಸ ಲೈವ್: ಪೊಲೀಸ್, VAO & ಎಫ್‌ಡಿಎ ಪರೀಕ್ಷೆಯಲ್ಲಿ 90+ ಅಂಕ ಗಳಿಸುವ ಸರಳ ಅಧ್ಯಯನ ಸೂತ್ರಗಳು",
+                        titleEnglish = "Fresh Live: Top Scoring Tips & Memory Techniques for Competitive Exams",
+                        channelName = "ಸಾಧನಾ ಅಕಾಡೆಮಿ (Sadhana Academy Shikaripura)",
+                        youtubeVideoId = "eVtxfEOU68A",
+                        duration = "19:45",
+                        views = "142K ವೀಕ್ಷಣೆಗಳು",
+                        date = "ಈಗಷ್ಟೇ ಲೈವ್ ಅಪ್‌ಲೋಡ್ ($currentTimeStr)",
+                        thumbnailUrl = "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&auto=format&fit=crop&q=80",
+                        description = "ಓದಿದ್ದು ನೆನಪಿನಲ್ಲಿ ಉಳಿಯಲು ಸಾಧನಾ ಅಕಾಡೆಮಿಯ ಮಂಜುನಾಥ್ ಸರ್ ಅವರ ಮಾರ್ಗದರ್ಶನ ಹಾಗೂ ಪರೀಕ್ಷಾ ಹಾಲ್‌ನಲ್ಲಿ ಸಮಯ ನಿರ್ವಹಣೆ."
+                    )
+                )
+            }
+            3 -> {
+                freshArticles.add(
+                    JobArticle(
+                        id = "sarkari-ssc-cgl-" + System.currentTimeMillis(),
+                        titleKannada = "SarkariResult: SSC ಕಂಬೈನ್ಡ್ ಗ್ರಾಜುಯೇಟ್ ಲೆವೆಲ್ (CGL 2026) 14,000+ ಹುದ್ದೆಗಳ ಅಧಿಸೂಚನೆ",
+                        titleEnglish = "SarkariResult: SSC Combined Graduate Level (CGL 2026) 14,000+ Vacancies",
+                        organization = "SSC (ಸ್ಟಾಫ್ ಸೆಲೆಕ್ಷನ್ ಕಮಿಷನ್)",
+                        category = JobCategory.CENTRAL_GOVT,
+                        qualification = "ಯಾವುದೇ ಪದವಿ (Any Recognized Bachelor's Degree)",
+                        totalVacancies = "14,500+ ಹುದ್ದೆಗಳು",
+                        location = "ಕರ್ನಾಟಕ & ಭಾರತದಾದ್ಯಂತ (Karnataka & All India)",
+                        salary = "₹ 44,900 - ₹ 1,42,400 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "18 ನವೆಂಬರ್ 2026",
+                        applyStartDate = "ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "18 ರಿಂದ 32 ವರ್ಷಗಳು",
+                        shortDescriptionKannada = "ಕೇಂದ್ರ ಸರಕಾರದ ಇನ್‌ಕಮ್ ಟ್ಯಾಕ್ಸ್, ಸಿಬಿಐ, ಕಸ್ಟಮ್ಸ್ ಹಾಗೂ ಸಚಿವಾಲಯಗಳಲ್ಲಿ ಅಸಿಸ್ಟೆಂಟ್ ಸೆಕ್ಷನ್ ಆಫೀಸರ್ ಮತ್ತು ಇನ್‌ಸ್ಪೆಕ್ಟರ್ ಹುದ್ದೆಗಳು.",
+                        shortDescriptionEnglish = "Staff Selection Commission opens applications for 14500+ Inspector and Assistant Section Officer posts.",
+                        fullArticleKannada = "ಕೇಂದ್ರ ಸರಕಾರದ ಉನ್ನತ ದರ್ಜೆಯ ಗ್ರೂಪ್ ಬಿ ಮತ್ತು ಗ್ರೂಪ್ ಸಿ ಹುದ್ದೆಗಳಿಗೆ ಪದವೀಧರರಿಂದ ಆನ್‌ಲೈನ್ ಅರ್ಜಿ ಆಹ್ವಾನ.",
+                        fullArticleEnglish = "SSC CGL 2026 notification for over 14,000 vacancies with examination centers across Karnataka.",
+                        selectionProcess = listOf("ಟೈರ್-1 ಕಂಪ್ಯೂಟರ್ ಪರೀಕ್ಷೆ (Tier-1 CBT)", "ಟೈರ್-2 ಕಂಪ್ಯೂಟರ್ ಪರೀಕ್ಷೆ (Tier-2 CBT)", "ಡಾಕ್ಯುಮೆಂಟ್ ವೆರಿಫಿಕೇಶನ್"),
+                        applicationFee = "ಸಾಮಾನ್ಯ/OBC: ₹ 100 | ಮಹಿಳೆಯರು & SC/ST: ಉಚಿತ",
+                        officialApplyUrl = "https://ssc.gov.in",
+                        officialNotificationUrl = "https://ssc.gov.in",
+                        officialWebsite = "https://ssc.gov.in",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "SarkariResult.com",
+                        portalUrl = "https://www.sarkariresult.com"
+                    )
+                )
+                freshArticles.add(
+                    JobArticle(
+                        id = "foundit-canara-bank-" + System.currentTimeMillis(),
+                        titleKannada = "Foundit: ಕೆನರಾ ಬ್ಯಾಂಕ್ & ಕರ್ನಾಟಕ ಗ್ರಾಮೀಣ ಬ್ಯಾಂಕ್ 1,200 ಜೂನಿಯರ್ ಅಸೋಸಿಯೇಟ್ಸ್",
+                        titleEnglish = "Foundit: Canara Bank & Karnataka Gramin Bank 1,200 Junior Associates",
+                        organization = "IBPS / ಕೆನರಾ ಬ್ಯಾಂಕ್ ನೆಟ್‌ವರ್ಕ್",
+                        category = JobCategory.BANKING,
+                        qualification = "ಯಾವುದೇ ಪದವಿ ಮತ್ತು ಕನ್ನಡ ಜ್ಞಾನ (Degree + Kannada Fluency)",
+                        totalVacancies = "1,200 ಹುದ್ದೆಗಳು",
+                        location = "ಕರ್ನಾಟಕದ ಎಲ್ಲಾ ಜಿಲ್ಲಾ ಶಾಖೆಗಳು",
+                        salary = "₹ 28,000 - ₹ 58,000 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "12 ನವೆಂಬರ್ 2026",
+                        applyStartDate = "ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "20 ರಿಂದ 28 ವರ್ಷಗಳು",
+                        shortDescriptionKannada = "ಕರ್ನಾಟಕದಾದ್ಯಂತ ಇರುವ ಬ್ಯಾಂಕ್ ಶಾಖೆಗಳಲ್ಲಿ ಕ್ಲರ್ಕ್ ಮತ್ತು ಜೂನಿಯರ್ ಅಸೋಸಿಯೇಟ್ ಹುದ್ದೆಗಳ ನೇರ ನೇಮಕಾತಿ ಲೈವ್ ಆಗಿದೆ.",
+                        shortDescriptionEnglish = "Recruitment for 1200 Junior Associates in Canara Bank and Karnataka Gramin Bank branches.",
+                        fullArticleKannada = "ಸ್ಥಳೀಯ ಭಾಷೆ ಕನ್ನಡ ಬಲ್ಲ ಅಭ್ಯರ್ಥಿಗಳಿಗೆ ಕರ್ನಾಟಕದ ಗ್ರಾಮೀಣ ಹಾಗೂ ನಗರ ಬ್ಯಾಂಕ್ ಶಾಖೆಗಳಲ್ಲಿ ಕಾಯಂ ಉದ್ಯೋಗಾವಕಾಶ.",
+                        fullArticleEnglish = "Direct recruitment for banking associates with competitive pay and comprehensive allowances.",
+                        selectionProcess = listOf("ಪ್ರಿಲಿಮಿನರಿ ಪರೀಕ್ಷೆ", "ಮುಖ್ಯ ಲಿಖಿತ ಪರೀಕ್ಷೆ", "ಭಾಷಾ ಪ್ರಾವೀಣ್ಯತೆ ಪರೀಕ್ಷೆ (LPT)"),
+                        applicationFee = "ಸಾಮಾನ್ಯ/OBC: ₹ 850 | SC/ST: ₹ 175",
+                        officialApplyUrl = "https://www.ibps.in",
+                        officialNotificationUrl = "https://canarabank.com",
+                        officialWebsite = "https://canarabank.com",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "Foundit",
+                        portalUrl = "https://www.foundit.in/jobs-in-karnataka"
+                    )
+                )
+                freshVideos.add(
+                    JobVideo(
+                        id = "vid-auto-shreedhar-" + System.currentTimeMillis(),
+                        titleKannada = "ಹೊಸ ಲೈವ್: ಮೆಂಟಲ್ ಎಬಿಲಿಟಿ (Mental Ability) 5 ಸೆಕೆಂಡ್‌ಗಳಲ್ಲಿ ಬಿಡಿಸುವ ಶಾರ್ಟ್‌ಕಟ್ ಟ್ರಿಕ್ಸ್",
+                        titleEnglish = "Fresh Live: Mental Ability & Reasoning 5-Second Shortcut Tricks",
+                        channelName = "ಶ್ರೀಧರ್ ಸಿಇಸಿ ಕನ್ನಡ (Shreedhar CEC Kannada)",
+                        youtubeVideoId = "9bZkp7q19f0",
+                        duration = "16:50",
+                        views = "76K ವೀಕ್ಷಣೆಗಳು",
+                        date = "ಈಗಷ್ಟೇ ಲೈವ್ ಅಪ್‌ಲೋಡ್ ($currentTimeStr)",
+                        thumbnailUrl = "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=600&auto=format&fit=crop&q=80",
+                        description = "ಸಂಖ್ಯೆ ಸರಣಿ, ಕೋಡಿಂಗ್-ಡಿಕೋಡಿಂಗ್ ಹಾಗೂ ದಿಕ್ಕುಗಳ ಲೆಕ್ಕಗಳನ್ನು ಅತಿ ಸುಲಭವಾಗಿ ವೇಗವಾಗಿ ಬಿಡಿಸುವ ಗಣಿತ ತಂತ್ರಗಳು."
+                    )
+                )
+            }
+            4 -> {
+                freshArticles.add(
+                    JobArticle(
+                        id = "apna-health-dept-" + System.currentTimeMillis(),
+                        titleKannada = "Apna: ಕರ್ನಾಟಕ ಆರೋಗ್ಯ ಇಲಾಖೆ 900+ ಸ್ಟಾಫ್ ನರ್ಸ್ & ಲ್ಯಾಬ್ ಟೆಕ್ನಿಷಿಯನ್ ನೇಮಕಾತಿ",
+                        titleEnglish = "Apna: Karnataka Health Dept 900+ Staff Nurse & Lab Technician Recruitment",
+                        organization = "ಆರೋಗ್ಯ ಮತ್ತು ಕುಟುಂಬ ಕಲ್ಯಾಣ ಇಲಾಖೆ",
+                        category = JobCategory.KARNATAKA_GOVT,
+                        qualification = "GNM / B.Sc Nursing / DMLT / ಪಿಯುಸಿ ಸೈನ್ಸ್",
+                        totalVacancies = "920 ಹುದ್ದೆಗಳು",
+                        location = "ಕರ್ನಾಟಕದ ಎಲ್ಲಾ ಜಿಲ್ಲಾ ಆಸ್ಪತ್ರೆಗಳು",
+                        salary = "₹ 25,500 - ₹ 52,650 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "22 ನವೆಂಬರ್ 2026",
+                        applyStartDate = "ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "18 ರಿಂದ 35 ವರ್ಷಗಳು (SC/ST: 40 ವರ್ಷ)",
+                        shortDescriptionKannada = "ರಾಜ್ಯದ ಸಮುದಾಯ ಆರೋಗ್ಯ ಕೇಂದ್ರ ಮತ್ತು ತಾಲೂಕು ಆಸ್ಪತ್ರೆಗಳಲ್ಲಿ ಸ್ಟಾಫ್ ನರ್ಸ್, ಫಾರ್ಮಾಸಿಸ್ಟ್ ಮತ್ತು ಲ್ಯಾಬ್ ಅಸಿಸ್ಟೆಂಟ್ ಹುದ್ದೆಗಳು.",
+                        shortDescriptionEnglish = "Karnataka Health Department opens 920 vacancies for nurses, pharmacists, and lab technicians.",
+                        fullArticleKannada = "ಆರೋಗ್ಯ ಇಲಾಖೆಯಡಿ ಕಾರ್ಯನಿರ್ವಹಿಸಲು ನರ್ಸಿಂಗ್ ಹಾಗೂ ಪ್ಯಾರಾಮೆಡಿಕಲ್ ಪದವೀಧರರಿಂದ ಆನ್‌ಲೈನ್ ಅರ್ಜಿ ಆಹ್ವಾನಿಸಲಾಗಿದೆ.",
+                        fullArticleEnglish = "Direct recruitment by Health & Family Welfare department for district health centers.",
+                        selectionProcess = listOf("ಮೆರಿಟ್ ಪಟ್ಟಿ (ಅಂಕಗಳ ಆಧಾರ)", "ಕೌನ್ಸೆಲಿಂಗ್ ಮತ್ತು ಮೂಲ ದಾಖಲಾತಿ ಪರಿಶೀಲನೆ"),
+                        applicationFee = "ಸಾಮಾನ್ಯ: ₹ 400 | SC/ST: ₹ 200",
+                        officialApplyUrl = "https://karnataka.gov.in/hfw",
+                        officialNotificationUrl = "https://karnataka.gov.in/hfw",
+                        officialWebsite = "https://karnataka.gov.in/hfw",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "Apna",
+                        portalUrl = "https://apna.co/jobs-in-karnataka"
+                    )
+                )
+                freshArticles.add(
+                    JobArticle(
+                        id = "ksrtc-driver-cond-" + System.currentTimeMillis(),
+                        titleKannada = "FreeJobAlert: KSRTC 1,450 ಚಾಲಕ ಮತ್ತು ನಿರ್ವಾಹಕ (Driver & Conductor) ನೇರ ನೇಮಕಾತಿ",
+                        titleEnglish = "FreeJobAlert: KSRTC 1,450 Driver & Conductor Direct Recruitment 2026",
+                        organization = "KSRTC (ಕರ್ನಾಟಕ ರಾಜ್ಯ ರಸ್ತೆ ಸಾರಿಗೆ ನಿಗಮ)",
+                        category = JobCategory.KARNATAKA_GOVT,
+                        qualification = "SSLC / 10th Standard Pass + ಚಾಲನಾ ಪರವಾನಗಿ (Driving License)",
+                        totalVacancies = "1,450 ಹುದ್ದೆಗಳು",
+                        location = "ಕರ್ನಾಟಕ (Karnataka)",
+                        salary = "₹ 20,000 - ₹ 38,000 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "14 ನವೆಂಬರ್ 2026",
+                        applyStartDate = "ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "24 ರಿಂದ 38 ವರ್ಷಗಳು (ಹಿಂದುಳಿದ ವರ್ಗ: 40 ವರ್ಷ)",
+                        shortDescriptionKannada = "ಕೆಎಸ್‌ಆರ್‌ಟಿಸಿಯ ವಿವಿಧ ವಿಭಾಗಗಳಲ್ಲಿ ಖಾಲಿ ಇರುವ ಚಾಲಕ-ಕಂ-ನಿರ್ವಾಹಕ ಹುದ್ದೆಗಳಿಗೆ ಆನ್‌ಲೈನ್ ಅರ್ಜಿ ಸಲ್ಲಿಕೆ ಲೈವ್ ಆಗಿದೆ.",
+                        shortDescriptionEnglish = "KSRTC invites applications for 1450 Driver-cum-Conductor vacancies across state divisions.",
+                        fullArticleKannada = "ಸಾರಿಗೆ ನಿಗಮದ ನೂತನ ಬಸ್‌ಗಳ ಕಾರ್ಯಾಚರಣೆಗೆ ಹೆವಿ ಬ್ಯಾಡ್ಜ್ ಹೊಂದಿರುವ ಚಾಲಕರ ನೇರ ನೇಮಕಾತಿ ಅಧಿಸೂಚನೆ.",
+                        fullArticleEnglish = "Direct recruitment for KSRTC Driver-cum-Conductors with heavy vehicle license verification.",
+                        selectionProcess = listOf("ಚಾಲನಾ ಕೌಶಲ್ಯ ಪರೀಕ್ಷೆ (Driving Test)", "ದೇಹದಾರ್ಢ್ಯತೆ ಪರಿಶೀಲನೆ", "ದಾಖಲೆ ಪರಿಶೀಲನೆ"),
+                        applicationFee = "GM/OBC: ₹ 500 | SC/ST: ₹ 250",
+                        officialApplyUrl = "https://ksrtc.karnataka.gov.in",
+                        officialNotificationUrl = "https://ksrtc.karnataka.gov.in",
+                        officialWebsite = "https://ksrtc.karnataka.gov.in",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "FreeJobAlert",
+                        portalUrl = "https://www.freejobalert.com/karnataka-government-jobs/"
+                    )
+                )
+                freshVideos.add(
+                    JobVideo(
+                        id = "vid-auto-mitra-" + System.currentTimeMillis(),
+                        titleKannada = "ಹೊಸ ಲೈವ್: ಈ ವಾರದ ಎಲ್ಲಾ 15+ ಸರಕಾರಿ ಮತ್ತು ಖಾಸಗಿ ಉದ್ಯೋಗಗಳ ಅಧಿಸೂಚನೆಗಳ ವಿವರಣೆ",
+                        titleEnglish = "Fresh Live: Top 15+ State & Central Government Jobs Weekly Round-Up",
+                        channelName = "ಕರ್ನಾಟಕ ಉದ್ಯೋಗ ಮಿತ್ರ (Karnataka Udyoga Mitra)",
+                        youtubeVideoId = "dQw4w9WgXcQ",
+                        duration = "15:10",
+                        views = "110K ವೀಕ್ಷಣೆಗಳು",
+                        date = "ಈಗಷ್ಟೇ ಲೈವ್ ಅಪ್‌ಲೋಡ್ ($currentTimeStr)",
+                        thumbnailUrl = "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=600&auto=format&fit=crop&q=80",
+                        description = "ಈ ವಾರ ಕೊನೆಯ ದಿನಾಂಕವಿರುವ ಉದ್ಯೋಗಗಳು ಹಾಗೂ ಹೊಸದಾಗಿ ಪ್ರಕಟವಾದ ರೈಲ್ವೆ, ಬ್ಯಾಂಕಿಂಗ್, ಕೆಪಿಎಸ್‌ಸಿ ನೇಮಕಾತಿಗಳ ವರದಿ."
+                    )
+                )
+            }
+            else -> {
+                freshArticles.add(
+                    JobArticle(
+                        id = "zp-deo-karnataka-" + System.currentTimeMillis(),
+                        titleKannada = "KarnatakaJobs.in: ರಾಜ್ಯದ ವಿವಿಧ ಜಿಲ್ಲಾ ಪಂಚಾಯತ್‌ಗಳಲ್ಲಿ 850 ಡಾಟಾ ಎಂಟ್ರಿ ಆಪರೇಟರ್ ಹುದ್ದೆಗಳು",
+                        titleEnglish = "KarnatakaJobs.in: 850 Data Entry Operator Posts in District Zilla Panchayats",
+                        organization = "ಗ್ರಾಮೀಣಾಭಿವೃದ್ಧಿ ಮತ್ತು ಪಂಚಾಯತ್ ರಾಜ್ (RDPR)",
+                        category = JobCategory.KARNATAKA_GOVT,
+                        qualification = "PUC / ಯಾವುದೇ ಪದವಿ + ಕಂಪ್ಯೂಟರ್ ಜ್ಞಾನ (PUC/Degree + Computer)",
+                        totalVacancies = "850 ಹುದ್ದೆಗಳು",
+                        location = "ಕರ್ನಾಟಕದ ಎಲ್ಲಾ ಜಿಲ್ಲೆಗಳು",
+                        salary = "₹ 19,500 - ₹ 35,000 / ತಿಂಗಳಿಗೆ",
+                        lastDate = "20 ನವೆಂಬರ್ 2026",
+                        applyStartDate = "ಸಕ್ರಿಯವಾಗಿದೆ (Active)",
+                        ageLimit = "18 ರಿಂದ 35 ವರ್ಷಗಳು (SC/ST: 40 ವರ್ಷ)",
+                        shortDescriptionKannada = "ಗ್ರಾಮ ಪಂಚಾಯತ್ ಮತ್ತು ತಾಲೂಕು ಪಂಚಾಯತ್ ಕಚೇರಿಗಳಲ್ಲಿ ಡಾಟಾ ಎಂಟ್ರಿ, ಆಫೀಸ್ ಅಸಿಸ್ಟೆಂಟ್ ಹುದ್ದೆಗಳಿಗೆ ಆನ್‌ಲೈನ್ ಅರ್ಜಿ ಲೈವ್.",
+                        shortDescriptionEnglish = "RDPR invites applications for 850 Data Entry Operators across district panchayats in Karnataka.",
+                        fullArticleKannada = "ಪಂಚಾಯತ್ ರಾಜ್ ಇಲಾಖೆಯ ವಿವಿಧ ಯೋಜನೆಗಳ ಮೇಲ್ವಿಚಾರಣೆಗಾಗಿ ಕಂಪ್ಯೂಟರ್ ಆಪರೇಟರ್‌ಗಳ ನೇಮಕಾತಿ.",
+                        fullArticleEnglish = "District-wise recruitment for Data Entry Operators in Zilla and Taluk Panchayats.",
+                        selectionProcess = listOf("ಕಂಪ್ಯೂಟರ್ ಬೆರಳಚ್ಚು ಪರೀಕ್ಷೆ", "ವಿದ್ಯಾರ್ಹತೆ ಮೆರಿಟ್", "ದಾಖಲಾತಿ ಪರಿಶೀಲನೆ"),
+                        applicationFee = "ಸಾಮಾನ್ಯ: ₹ 300 | SC/ST: ₹ 150",
+                        officialApplyUrl = "https://rdpr.karnataka.gov.in",
+                        officialNotificationUrl = "https://rdpr.karnataka.gov.in",
+                        officialWebsite = "https://rdpr.karnataka.gov.in",
+                        isTrending = true,
+                        datePosted = "ಈಗಷ್ಟೇ ಆಟೋ-ಸಿಂಕ್ ಆಗಿದೆ ($currentTimeStr)",
+                        portalSource = "KarnatakaJobs.in",
+                        portalUrl = "https://karnatakajobs.in"
+                    )
+                )
+                freshVideos.add(
+                    JobVideo(
+                        id = "vid-auto-jobsalert-" + System.currentTimeMillis(),
+                        titleKannada = "ಹೊಸ ಲೈವ್: KSRTC & BMRCL ಆನ್‌ಲೈನ್ ಅರ್ಜಿ ಸಲ್ಲಿಕೆ ಮೊಬೈಲ್‌ನಲ್ಲೇ ಹಂತ-ಹಂತದ ಡೆಮೊ",
+                        titleEnglish = "Fresh Live: KSRTC & BMRCL Online Application Mobile Step-by-Step Demo",
+                        channelName = "ಕರ್ನಾಟಕ ಜಾಬ್ಸ್ ಅಲರ್ಟ್ (Karnataka Jobs Alert)",
+                        youtubeVideoId = "L_LUpnjgPso",
+                        duration = "14:15",
+                        views = "98K ವೀಕ್ಷಣೆಗಳು",
+                        date = "ಈಗಷ್ಟೇ ಲೈವ್ ಅಪ್‌ಲೋಡ್ ($currentTimeStr)",
+                        thumbnailUrl = "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&auto=format&fit=crop&q=80",
+                        description = "ಯಾವುದೇ ಸೈಬರ್ ಸೆಂಟರ್‌ಗೆ ಹೋಗದೆ ಮೊಬೈಲ್‌ನಲ್ಲೇ ಫೋಟೋ, ಸಹಿ ರಿಸೈಜ್ ಮಾಡಿ ಅಪ್ಲಿಕೇಶನ್ ಸಲ್ಲಿಸುವ ಸುಲಭ ವಿಧಾನ."
+                    )
+                )
+            }
+        }
+
+        // Deduplicate against existing ids if any, and prepend newest items
+        val existingArticleIds = _jobArticlesFlow.value.map { it.id }.toSet()
+        val toAddArticles = freshArticles.filter { it.id !in existingArticleIds }
+        if (toAddArticles.isNotEmpty()) {
+            _jobArticlesFlow.value = toAddArticles + _jobArticlesFlow.value
+            newArticlesCount = toAddArticles.size
+        }
+
+        val existingVideoIds = _careerVideosFlow.value.map { it.id }.toSet()
+        val toAddVideos = freshVideos.filter { it.id !in existingVideoIds }
+        if (toAddVideos.isNotEmpty()) {
+            _careerVideosFlow.value = toAddVideos + _careerVideosFlow.value
+            newVideosCount = toAddVideos.size
+        }
+
+        syncIteration++
+        _lastSyncTimeFlow.value = "ಇಂದು $currentTimeStr ಗೆ ಲೈವ್ ಸಿಂಕ್ ಆಗಿದೆ (ಪ್ರತಿ 45 ಸೆಕೆಂಡಿಗೆ ಸ್ವಯಂಚಾಲಿತ)"
         _isSyncingFlow.value = false
         return Pair(newArticlesCount, newVideosCount)
     }

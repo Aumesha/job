@@ -31,9 +31,11 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BusinessCenter
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -71,12 +73,14 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -94,8 +98,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.example.ads.UnityAdsSettingsDialog
 import com.example.ads.UnityBannerAd
 import com.example.ads.UnityInterstitialAdDialog
 import com.example.ads.UnityRewardUnlockDialog
@@ -134,6 +144,7 @@ fun MainScreen(
 
     // Ads and Legal dialog states
     var showAdsSettings by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
     var showLegalMenuDropdown by remember { mutableStateOf(false) }
     var activeLegalPage by remember { mutableStateOf<LegalPolicyPage?>(null) }
 
@@ -148,13 +159,39 @@ fun MainScreen(
     val allVideos by JobRepository.careerVideosFlow.collectAsState()
     val isSyncing by JobRepository.isSyncingFlow.collectAsState()
     val lastSyncTime by JobRepository.lastSyncTimeFlow.collectAsState()
+    val customWebsites by JobRepository.customWebsitesFlow.collectAsState()
+    val customChannels by JobRepository.customChannelsFlow.collectAsState()
 
-    // Continuous Automated Real-time Sync (No manual action required - auto syncs on launch & periodically)
+    var secondsToNextSync by remember { mutableIntStateOf(45) }
+    var autoSyncBannerText by remember { mutableStateOf<String?>(null) }
+
+    // Continuous Automated Real-time Sync (No manual action required - auto syncs on launch & every 45s continuously)
     LaunchedEffect(Unit) {
-        JobRepository.syncLatestFromPortalsAndChannels()
+        val (firstJobs, firstVids) = JobRepository.syncLatestFromPortalsAndChannels()
+        if (firstJobs > 0 || firstVids > 0) {
+            autoSyncBannerText = if (isKannada) "⚡ ತಾನಾಗಿಯೇ ಅಪ್‌ಡೇಟ್ ಆಗಿದೆ: $firstJobs ಹೊಸ ಉದ್ಯೋಗ, $firstVids ಹೊಸ ವೀಡಿಯೋಗಳು ಲೈವ್!"
+                else "⚡ Auto-Synced: $firstJobs new jobs, $firstVids new videos live!"
+        }
         while (true) {
-            delay(45_000) // Automatically check and sync updates every 45 seconds continuously in background
-            JobRepository.syncLatestFromPortalsAndChannels()
+            kotlinx.coroutines.delay(1000)
+            if (secondsToNextSync > 1) {
+                secondsToNextSync -= 1
+            } else {
+                secondsToNextSync = 45
+                val (newJobs, newVids) = JobRepository.syncLatestFromPortalsAndChannels()
+                if (newJobs > 0 || newVids > 0) {
+                    autoSyncBannerText = if (isKannada) "⚡ ತಾನಾಗಿಯೇ ಅಪ್‌ಡೇಟ್ ಆಗಿದೆ: $newJobs ಹೊಸ ಉದ್ಯೋಗ, $newVids ಹೊಸ ವೀಡಿಯೋಗಳು ಲೈವ್!"
+                        else "⚡ Auto-Updated: $newJobs new jobs, $newVids new videos live!"
+                }
+            }
+        }
+    }
+
+    // Auto dismiss notification banner after 7 seconds
+    LaunchedEffect(autoSyncBannerText) {
+        if (autoSyncBannerText != null) {
+            kotlinx.coroutines.delay(7000)
+            autoSyncBannerText = null
         }
     }
 
@@ -381,14 +418,14 @@ fun MainScreen(
                         }
                     }
 
-                    // Unity Ads Settings (Gare box)
+                    // Settings (Protected by password)
                     IconButton(
-                        onClick = { showAdsSettings = true },
+                        onClick = { showPasswordDialog = true },
                         modifier = Modifier.testTag("main_ads_settings_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Ads Configuration",
+                            contentDescription = "Settings",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -530,11 +567,14 @@ fun MainScreen(
             LiveSyncHeaderBar(
                 isSyncing = isSyncing,
                 lastSyncTime = lastSyncTime,
+                secondsRemaining = secondsToNextSync,
                 isKannada = isKannada,
                 onSyncClick = {
                     coroutineScope.launch {
                         val (newArticles, newVideos) = JobRepository.syncLatestFromPortalsAndChannels()
                         if (newArticles > 0 || newVideos > 0) {
+                            autoSyncBannerText = if (isKannada) "⚡ ತಾನಾಗಿಯೇ ಅಪ್‌ಡೇಟ್ ಆಗಿದೆ: $newArticles ಹೊಸ ಜಾಬ್, $newVideos ಹೊಸ ವೀಡಿಯೋಗಳು ಲೈವ್!"
+                                else "⚡ Live Synced: $newArticles new jobs, $newVideos new career videos!"
                             Toast.makeText(
                                 context,
                                 if (isKannada) "ಆಟೋ-ಸಿಂಕ್ ಯಶಸ್ವಿ: $newArticles ಹೊಸ ಜಾಬ್ ಅಧಿಸೂಚನೆಗಳು, $newVideos ಹೊಸ ವೀಡಿಯೋಗಳು ಲೈವ್ ಆಗಿವೆ!"
@@ -553,10 +593,52 @@ fun MainScreen(
                 }
             )
 
-            // Filter Chips for Menu 1: 9 Private Job Portals
+            // Animated Banner for Automatic Sync Notification
+            AnimatedVisibility(visible = autoSyncBannerText != null) {
+                Surface(
+                    color = Color(0xFF047857),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = null,
+                            tint = Color(0xFFFDE047),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = autoSyncBannerText ?: "",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { autoSyncBannerText = null },
+                            modifier = Modifier.size(22.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Filter Chips for Menu 1: 9 Private Job Portals + Custom Added Portals
             if (selectedMenu == AppMenu.JOBS) {
-                val portalOptions = listOf(
-                    null to (if (isKannada) "ಎಲ್ಲಾ 9 ಪೋರ್ಟಲ್‌ಗಳು" else "All 9 Portals"),
+                val basePortals = listOf(
+                    null to (if (isKannada) "ಎಲ್ಲಾ ಪೋರ್ಟಲ್‌ಗಳು" else "All Portals"),
                     "FreeJobAlert" to "1. FreeJobAlert",
                     "KarnatakaJobs" to "2. KarnatakaJobs.in",
                     "Freshersworld" to "3. Freshersworld",
@@ -567,6 +649,10 @@ fun MainScreen(
                     "Foundit" to "8. Foundit (Monster)",
                     "Apna" to "9. Apna App Portal"
                 )
+                val customPortalOptions = customWebsites.map { site ->
+                    site.name to "🌐 ${site.name}"
+                }
+                val portalOptions = basePortals + customPortalOptions
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -593,10 +679,10 @@ fun MainScreen(
                 }
             }
 
-            // Filter Chips for Menu 2: 6 Top YouTube Channels
+            // Filter Chips for Menu 2: 6 Top YouTube Channels + Custom Added Channels
             if (selectedMenu == AppMenu.VIDEOS) {
-                val channelOptions = listOf(
-                    null to (if (isKannada) "ಎಲ್ಲಾ 6 ಚಾನೆಲ್‌ಗಳು" else "All 6 Channels"),
+                val baseChannels = listOf(
+                    null to (if (isKannada) "ಎಲ್ಲಾ ಚಾನೆಲ್‌ಗಳು" else "All Channels"),
                     "Spardha Chaitra" to "1. ಸ್ಪರ್ಧಾ ಚೈತ್ರ",
                     "Karnataka Jobs Alert" to "2. ಕರ್ನಾಟಕ ಜಾಬ್ಸ್ ಅಲರ್ಟ್",
                     "Classic Education" to "3. ಕ್ಲಾಸಿಕ್ ಎಜುಕೇಶನ್ / KPSC ವಾಣಿ",
@@ -604,6 +690,10 @@ fun MainScreen(
                     "Shreedhar" to "5. ಶ್ರೀಧರ್ ಸಿಇಸಿ ಕನ್ನಡ",
                     "Karnataka Udyoga Mitra" to "6. ಕರ್ನಾಟಕ ಉದ್ಯೋಗ ಮಿತ್ರ"
                 )
+                val customChannelOptions = customChannels.map { chan ->
+                    chan.channelName to "📺 ${chan.channelName}"
+                }
+                val channelOptions = baseChannels + customChannelOptions
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -770,13 +860,165 @@ fun MainScreen(
         )
     }
 
-    // Unity Ads Settings Dialog
+    // Password Prompt Dialog before opening Settings
+    if (showPasswordDialog) {
+        SettingsPasswordDialog(
+            onSuccess = {
+                showPasswordDialog = false
+                showAdsSettings = true
+            },
+            onDismiss = { showPasswordDialog = false },
+            isKannada = isKannada
+        )
+    }
+
+    // App Settings Dialog (Option 1: Add Websites, Option 2: Add YouTube Channels, Option 3: Unity Ads)
     if (showAdsSettings) {
-        UnityAdsSettingsDialog(
+        AppSettingsDialog(
             currentConfig = adConfig,
             onSaveConfig = onUpdateAdConfig,
-            onDismiss = { showAdsSettings = false }
+            onDismiss = { showAdsSettings = false },
+            isKannada = isKannada
         )
+    }
+}
+
+/**
+ * Password Prompt Dialog for opening Settings
+ * Requires password: "aumesha"
+ */
+@Composable
+fun SettingsPasswordDialog(
+    onSuccess: () -> Unit,
+    onDismiss: () -> Unit,
+    isKannada: Boolean
+) {
+    var enteredPassword by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isError by remember { mutableStateOf(false) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .testTag("settings_password_dialog")
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = if (isKannada) "ಸೆಟ್ಟಿಂಗ್ಸ್ ಪಾಸ್‌ವರ್ಡ್ (Password)" else "Settings Password",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = if (isKannada) "ಸೆಟ್ಟಿಂಗ್ಸ್ ಬಾಕ್ಸ್ ತೆರೆಯಲು ದಯವಿಟ್ಟು ರಹಸ್ಯ ಪಾಸ್‌ವರ್ಡ್ ನಮೂದಿಸಿ."
+                    else "Please enter the secret password to open settings.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = enteredPassword,
+                    onValueChange = {
+                        enteredPassword = it
+                        isError = false
+                    },
+                    label = { Text(if (isKannada) "ಪಾಸ್‌ವರ್ಡ್ ನಮೂದಿಸಿ" else "Enter Password") },
+                    placeholder = { Text("password") },
+                    singleLine = true,
+                    isError = isError,
+                    visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                            Icon(
+                                imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = "Toggle password visibility",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("settings_password_input"),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                if (isError) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (isKannada) "❌ ತಪ್ಪಾದ ಪಾಸ್‌ವರ್ಡ್! ಸರಿಯಾದ ಪಾಸ್‌ವರ್ಡ್ ಹಾಕಿ."
+                        else "❌ Incorrect password! Please enter the correct password.",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isKannada) "ರದ್ದುಮಾಡಿ" else "Cancel")
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = {
+                            if (enteredPassword.trim() == "aumesha") {
+                                onSuccess()
+                            } else {
+                                isError = true
+                            }
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("submit_settings_password_button")
+                    ) {
+                        Text(if (isKannada) "ತೆರೆಯಿರಿ (Open)" else "Open")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -808,28 +1050,47 @@ fun JobArticleCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF2563EB).copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.BusinessCenter,
-                            contentDescription = null,
-                            tint = Color(0xFF1D4ED8),
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = article.portalSource.ifBlank { article.organization },
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1D4ED8),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF2563EB).copy(alpha = 0.12f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.BusinessCenter,
+                                contentDescription = null,
+                                tint = Color(0xFF1D4ED8),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = article.portalSource.ifBlank { article.organization },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1D4ED8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    if (article.datePosted.contains("ಸಿಂಕ್") || article.datePosted.contains("Just") || article.datePosted.contains("ಲೈವ್") || article.isTrending) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "✨ ಹೊಸದು (NEW)",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF059669)
+                            )
+                        }
                     }
                 }
 
@@ -979,29 +1240,48 @@ fun VideoItemCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // YouTube Channel Badge
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFFDC2626))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.VideoLibrary,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = video.channelName,
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // YouTube Channel Badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFDC2626))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.VideoLibrary,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = video.channelName,
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        if (video.date.contains("ಸಿಂಕ್") || video.date.contains("Just") || video.date.contains("ಲೈವ್") || video.date.contains("ಅಪ್‌ಲೋಡ್")) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF10B981))
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "✨ ಹೊಸದು (NEW)",
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
 
@@ -1184,6 +1464,7 @@ fun VideoItemCard(
 fun LiveSyncHeaderBar(
     isSyncing: Boolean,
     lastSyncTime: String,
+    secondsRemaining: Int,
     isKannada: Boolean,
     onSyncClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1204,7 +1485,7 @@ fun LiveSyncHeaderBar(
             .padding(horizontal = 16.dp, vertical = 2.dp),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
         )
     ) {
         Row(
@@ -1221,28 +1502,52 @@ fun LiveSyncHeaderBar(
                 // Pulsing live indicator circle
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(9.dp)
                         .clip(CircleShape)
                         .background(if (isSyncing) Color(0xFFF59E0B) else Color(0xFF10B981))
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (isSyncing) {
+                                if (isKannada) "🔄 ಲೈವ್ ಸಿಂಕ್ ಆಗುತ್ತಿದೆ..." else "🔄 Auto-Syncing Portals & Channels..."
+                            } else {
+                                if (isKannada) "⚡ 45s ಆಟೋ-ಸಿಂಕ್ ಸಕ್ರಿಯ" else "⚡ 45s Auto-Sync Active"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (isSyncing) Color(0xFFF59E0B).copy(alpha = 0.2f) else Color(0xFF10B981).copy(alpha = 0.2f))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = if (isSyncing) "Syncing" else "${secondsRemaining}s",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSyncing) Color(0xFFD97706) else Color(0xFF059669)
+                            )
+                        }
+                    }
                     Text(
                         text = if (isSyncing) {
-                            if (isKannada) "ಹೊಸ ಜಾಬ್ & ವೀಡಿಯೋ ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ..." else "Fetching updates from private portals & channels..."
+                            if (isKannada) "ಎಲ್ಲಾ ವೆಬ್‌ಸೈಟ್‌ಗಳು & ಚಾನೆಲ್‌ಗಳ ಹೊಸ ಅಪ್‌ಡೇಟ್ ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ..."
+                            else "Checking 9 portals & 6 YouTube channels for new updates..."
                         } else {
-                            if (isKannada) "ಆಟೋ-ಸಿಂಕ್: 9 ಖಾಸಗಿ ಜಾಬ್ ವೆಬ್‌ಸೈಟ್ & 6 ಚಾನೆಲ್ ಲೈವ್" else "Auto-Sync: 9 Private Portals & 6 Channels Live"
+                            if (isKannada) "$lastSyncTime (ಯಾವುದೇ ಹೊಸ ಮಾಹಿತಿ ಬಂದರೆ ತಕ್ಷಣವೇ ಕಾಣಿಸುತ್ತದೆ)"
+                            else "$lastSyncTime (Instant live updates appear automatically)"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isKannada) "ಕೊನೆಯ ನವೀಕರಣ: $lastSyncTime" else "Last update: $lastSyncTime",
-                        style = MaterialTheme.typography.bodySmall,
                         fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

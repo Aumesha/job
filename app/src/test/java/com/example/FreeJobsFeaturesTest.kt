@@ -66,4 +66,19 @@ class FreeJobsFeaturesTest {
         assertTrue(menus.contains(AppMenu.JOBS))
         assertTrue(menus.contains(AppMenu.VIDEOS))
     }
+
+    @Test
+    fun `verify custom website and custom channel additions`() {
+        // Add custom website
+        val addedWeb = JobRepository.addCustomJobWebsite("https://karnatakacareers.in")
+        assertTrue("Adding custom website should succeed", addedWeb)
+        val customSites = JobRepository.customWebsitesFlow.value
+        assertTrue("Custom websites flow should contain added site", customSites.any { it.url.contains("karnatakacareers.in") })
+
+        // Add custom YouTube channel
+        val addedChan = JobRepository.addCustomYouTubeChannel("https://youtube.com/@KPSCSuccess")
+        assertTrue("Adding custom channel should succeed", addedChan)
+        val customChans = JobRepository.customChannelsFlow.value
+        assertTrue("Custom channels flow should contain added channel", customChans.any { it.handle == "@KPSCSuccess" })
+    }
 }
