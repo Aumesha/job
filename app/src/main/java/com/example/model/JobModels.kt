@@ -33,6 +33,19 @@ data class YouTubeChannelSource(
     val isAutoSync: Boolean = true
 )
 
+enum class PrivateJobPortal(val displayName: String, val websiteUrl: String, val tagColor: Long) {
+    ALL("ಎಲ್ಲಾ ಪೋರ್ಟಲ್‌ಗಳು", "", 0xFF3B82F6),
+    FREE_JOB_ALERT("FreeJobAlert", "https://www.freejobalert.com", 0xFFE11D48),
+    KARNATAKA_JOBS("KarnatakaJobs.in", "https://karnatakajobs.in", 0xFF059669),
+    FRESHERSWORLD("Freshersworld", "https://www.freshersworld.com", 0xFF2563EB),
+    NAUKRI("Naukri.com", "https://www.naukri.com", 0xFF0284C7),
+    SHINE("Shine.com", "https://www.shine.com", 0xFFD97706),
+    INDEED("Indeed India", "https://in.indeed.com", 0xFF4F46E5),
+    SARKARI_RESULT("SarkariResult.com", "https://www.sarkariresult.com", 0xFFDC2626),
+    FOUNDIT("Foundit / ಫೌಂಡಿಟ್", "https://www.foundit.in", 0xFF7C3AED),
+    APNA_APP("Apna App Portal", "https://apna.co", 0xFF0D9488)
+}
+
 enum class JobCategory(val labelKannada: String, val labelEnglish: String) {
     ALL("ಎಲ್ಲಾ", "All"),
     KARNATAKA_GOVT("ಕರ್ನಾಟಕ ಸರಕಾರಿ", "Karnataka Govt"),
@@ -66,7 +79,9 @@ data class JobArticle(
     val officialNotificationUrl: String,
     val officialWebsite: String,
     val isTrending: Boolean = false,
-    val datePosted: String = "ಇಂದು"
+    val datePosted: String = "ಇಂದು",
+    val portalSource: String = "FreeJobAlert",
+    val portalUrl: String = "https://www.freejobalert.com"
 )
 
 data class JobVideo(
@@ -80,7 +95,9 @@ data class JobVideo(
     val date: String,
     val thumbnailUrl: String,
     val description: String,
-    val isUnlocked: Boolean = false
+    val isUnlocked: Boolean = false,
+    val channelUrl: String = "https://www.youtube.com",
+    val examCategory: String = "ಉದ್ಯೋಗ ಮಾಹಿತಿ"
 )
 
 data class UnityAdConfig(

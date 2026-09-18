@@ -107,6 +107,7 @@ import com.example.model.JobCategory
 import com.example.model.JobVideo
 import com.example.model.LegalPolicyPage
 import com.example.model.UnityAdConfig
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -126,6 +127,12 @@ fun MainScreen(
     var selectedMenu by remember { mutableStateOf(AppMenu.JOBS) }
     var selectedCategory by remember { mutableStateOf(JobCategory.ALL) }
     var searchQuery by remember { mutableStateOf("") }
+    // Selected Portal filter for Menu 1 (null means ALL 9 Portals)
+    var selectedPortal by remember { mutableStateOf<String?>(null) }
+    // Selected Channel filter for Menu 2 (null means ALL 6 Channels)
+    var selectedChannel by remember { mutableStateOf<String?>(null) }
+
+    // Ads and Legal dialog states
     var showAdsSettings by remember { mutableStateOf(false) }
     var showLegalMenuDropdown by remember { mutableStateOf(false) }
     var activeLegalPage by remember { mutableStateOf<LegalPolicyPage?>(null) }
@@ -142,30 +149,38 @@ fun MainScreen(
     val isSyncing by JobRepository.isSyncingFlow.collectAsState()
     val lastSyncTime by JobRepository.lastSyncTimeFlow.collectAsState()
 
-    // Automatically trigger initial background check for new jobs & videos
+    // Continuous Automated Real-time Sync (No manual action required - auto syncs on launch & periodically)
     LaunchedEffect(Unit) {
         JobRepository.syncLatestFromPortalsAndChannels()
+        while (true) {
+            delay(45_000) // Automatically check and sync updates every 45 seconds continuously in background
+            JobRepository.syncLatestFromPortalsAndChannels()
+        }
     }
 
-    // Filtered Jobs
+    // Filtered Jobs by the 9 Private Portals
     val filteredArticles = allArticles.filter { article ->
-        val matchesCategory = selectedCategory == JobCategory.ALL || article.category == selectedCategory
+        val matchesPortal = selectedPortal == null || article.portalSource.contains(selectedPortal!!, ignoreCase = true)
         val matchesSearch = if (searchQuery.isBlank()) true else {
             article.titleKannada.contains(searchQuery, ignoreCase = true) ||
             article.titleEnglish.contains(searchQuery, ignoreCase = true) ||
             article.organization.contains(searchQuery, ignoreCase = true) ||
+            article.portalSource.contains(searchQuery, ignoreCase = true) ||
             article.qualification.contains(searchQuery, ignoreCase = true)
         }
-        matchesCategory && matchesSearch
+        matchesPortal && matchesSearch
     }
 
-    // Filtered Videos
+    // Filtered Videos by the 6 YouTube Channels
     val filteredVideos = allVideos.filter { video ->
-        if (searchQuery.isBlank()) true else {
+        val matchesChannel = selectedChannel == null || video.channelName.contains(selectedChannel!!, ignoreCase = true)
+        val matchesSearch = if (searchQuery.isBlank()) true else {
             video.titleKannada.contains(searchQuery, ignoreCase = true) ||
             video.titleEnglish.contains(searchQuery, ignoreCase = true) ||
-            video.channelName.contains(searchQuery, ignoreCase = true)
+            video.channelName.contains(searchQuery, ignoreCase = true) ||
+            video.examCategory.contains(searchQuery, ignoreCase = true)
         }
+        matchesChannel && matchesSearch
     }
 
     // If a legal policy page was selected from the 3rd menu at the top, show it
@@ -216,13 +231,14 @@ fun MainScreen(
                         Column {
                             Text(
                                 text = "Free Jobs",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black
+                                style = MaterialTheme.typography.titleMedium,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = if (isKannada) "ಉಚಿತ ಉದ್ಯೋಗ ಮಾಹಿತಿ" else "No Ads Inside Job Articles",
                                 style = MaterialTheme.typography.bodySmall,
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -403,13 +419,15 @@ fun MainScreen(
             )
         },
         bottomBar = {
-            // Permanently only two bottom menus:
+            // Permanently only two bottom menus (compact height as requested):
             // 1st Menu: Job Articles (ಜಾಬ್ ಆರ್ಟಿಕಲ್ಸ್)
             // 2nd Menu: YouTube Job Videos (ಉದ್ಯೋಗ ವೀಡಿಯೋಗಳು)
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp,
-                modifier = Modifier.testTag("bottom_menu_bar")
+                tonalElevation = 4.dp,
+                modifier = Modifier
+                    .height(64.dp)
+                    .testTag("bottom_menu_bar")
             ) {
                 NavigationBarItem(
                     selected = selectedMenu == AppMenu.JOBS,
@@ -417,12 +435,14 @@ fun MainScreen(
                     icon = {
                         Icon(
                             imageVector = Icons.Default.MenuBook,
-                            contentDescription = "Jobs"
+                            contentDescription = "Jobs",
+                            modifier = Modifier.size(20.dp)
                         )
                     },
                     label = {
                         Text(
                             text = if (isKannada) "ಜಾಬ್ ಆರ್ಟಿಕಲ್ಸ್" else "Job Articles",
+                            fontSize = 11.sp,
                             fontWeight = if (selectedMenu == AppMenu.JOBS) FontWeight.Bold else FontWeight.Normal
                         )
                     },
@@ -435,12 +455,14 @@ fun MainScreen(
                     icon = {
                         Icon(
                             imageVector = Icons.Default.VideoLibrary,
-                            contentDescription = "Videos"
+                            contentDescription = "Videos",
+                            modifier = Modifier.size(20.dp)
                         )
                     },
                     label = {
                         Text(
                             text = if (isKannada) "ಉದ್ಯೋಗ ವೀಡಿಯೋ" else "Career Videos",
+                            fontSize = 11.sp,
                             fontWeight = if (selectedMenu == AppMenu.VIDEOS) FontWeight.Bold else FontWeight.Normal
                         )
                     },
@@ -454,39 +476,48 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Search Bar (Shown on Jobs & Videos tabs)
-            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+            // Search Bar (Shown on Jobs & Videos tabs - compacted as requested)
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(48.dp)
                         .testTag("search_text_field"),
                     placeholder = {
                         Text(
                             text = if (selectedMenu == AppMenu.JOBS) {
-                                if (isKannada) "ಹುದ್ದೆ, ಇಲಾಖೆ ಅಥವಾ ಅರ್ಹತೆ ಹುಡುಕಿ..." else "Search jobs, department, qualification..."
+                                if (isKannada) "ಹುದ್ದೆ, ಇಲಾಖೆ ಹುಡುಕಿ..." else "Search jobs, department..."
                             } else {
-                                if (isKannada) "ವೀಡಿಯೋ ಅಥವಾ ವಿಷಯ ಹುಡುಕಿ..." else "Search career videos..."
+                                if (isKannada) "ವೀಡಿಯೋ ಹುಡುಕಿ..." else "Search videos..."
                             },
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         )
                     },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
                         )
                     },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear")
+                            IconButton(
+                                onClick = { searchQuery = "" },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear",
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     },
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -522,26 +553,77 @@ fun MainScreen(
                 }
             )
 
-            // Category Chips for Menu 1 (Jobs)
+            // Filter Chips for Menu 1: 9 Private Job Portals
             if (selectedMenu == AppMenu.JOBS) {
+                val portalOptions = listOf(
+                    null to (if (isKannada) "ಎಲ್ಲಾ 9 ಪೋರ್ಟಲ್‌ಗಳು" else "All 9 Portals"),
+                    "FreeJobAlert" to "1. FreeJobAlert",
+                    "KarnatakaJobs" to "2. KarnatakaJobs.in",
+                    "Freshersworld" to "3. Freshersworld",
+                    "Naukri" to "4. Naukri.com",
+                    "Shine" to "5. Shine.com",
+                    "Indeed" to "6. Indeed India",
+                    "SarkariResult" to "7. SarkariResult.com",
+                    "Foundit" to "8. Foundit (Monster)",
+                    "Apna" to "9. Apna App Portal"
+                )
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(bottom = 6.dp)
                 ) {
-                    items(JobCategory.values()) { category ->
+                    items(portalOptions) { (portalKey, label) ->
+                        val isSelected = selectedPortal == portalKey
                         FilterChip(
-                            selected = selectedCategory == category,
-                            onClick = { selectedCategory = category },
+                            selected = isSelected,
+                            onClick = { selectedPortal = portalKey },
                             label = {
                                 Text(
-                                    text = if (isKannada) category.labelKannada else category.labelEnglish,
-                                    fontSize = 12.sp
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                 selectedLabelColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Filter Chips for Menu 2: 6 Top YouTube Channels
+            if (selectedMenu == AppMenu.VIDEOS) {
+                val channelOptions = listOf(
+                    null to (if (isKannada) "ಎಲ್ಲಾ 6 ಚಾನೆಲ್‌ಗಳು" else "All 6 Channels"),
+                    "Spardha Chaitra" to "1. ಸ್ಪರ್ಧಾ ಚೈತ್ರ",
+                    "Karnataka Jobs Alert" to "2. ಕರ್ನಾಟಕ ಜಾಬ್ಸ್ ಅಲರ್ಟ್",
+                    "Classic Education" to "3. ಕ್ಲಾಸಿಕ್ ಎಜುಕೇಶನ್ / KPSC ವಾಣಿ",
+                    "Spardha Sphoorthi" to "4. ಸ್ಪರ್ಧಾ ಸ್ಫೂರ್ತಿ",
+                    "Shreedhar" to "5. ಶ್ರೀಧರ್ ಸಿಇಸಿ ಕನ್ನಡ",
+                    "Karnataka Udyoga Mitra" to "6. ಕರ್ನಾಟಕ ಉದ್ಯೋಗ ಮಿತ್ರ"
+                )
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 6.dp)
+                ) {
+                    items(channelOptions) { (channelKey, label) ->
+                        val isSelected = selectedChannel == channelKey
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedChannel = channelKey },
+                            label = {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFFFE4E6),
+                                selectedLabelColor = Color(0xFFDC2626)
                             )
                         )
                     }
@@ -720,7 +802,7 @@ fun JobArticleCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Header Row: Org badge & Vacancies
+            // Header Row: Portal Source badge & Vacancies
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -729,17 +811,26 @@ fun JobArticleCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .background(Color(0xFF2563EB).copy(alpha = 0.12f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text(
-                        text = article.organization,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.BusinessCenter,
+                            contentDescription = null,
+                            tint = Color(0xFF1D4ED8),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = article.portalSource.ifBlank { article.organization },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1D4ED8),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -851,85 +942,173 @@ fun VideoItemCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column {
-            // Thumbnail with Play & Lock overlay
+            // Educational Job Video Broadcast Banner (No external exercise/fitness images)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
-                    .background(Color.DarkGray),
-                contentAlignment = Alignment.Center
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF0F172A),
+                                Color(0xFF1E293B),
+                                Color(0xFF0B192C)
+                            )
+                        )
+                    )
             ) {
-                AsyncImage(
-                    model = video.thumbnailUrl,
-                    contentDescription = video.titleEnglish,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-
-                // Dark vignette
+                // Background subtle accent graphic
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.3f))
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFFDC2626).copy(alpha = 0.18f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
                 )
 
-                // Center Icon (Unlocked play or Lock icon)
-                Box(
+                // Top Bar: Channel Badge (Red YouTube style) & Unlock Status Pill
+                Row(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(if (isUnlocked) Color(0xFFFF0000) else Color(0xFF0F172A).copy(alpha = 0.85f)),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = if (isUnlocked) Icons.Default.PlayArrow else Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(26.dp)
-                    )
+                    // YouTube Channel Badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFDC2626))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.VideoLibrary,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = video.channelName,
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // Unlock Status Pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isUnlocked) Color(0xFF059669) else Color(0xFFD97706))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isUnlocked) Icons.Default.LockOpen else Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isUnlocked) "ಅನ್‌ಲಾಕ್ ಆಗಿದೆ" else "ಜಾಹೀರಾತು ನೋಡಿ",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
                 }
 
-                // Duration badge
-                Box(
+                // Center: Exam Category & Center Play/Lock Icon
+                Column(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Black.copy(alpha = 0.8f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .align(Alignment.Center)
+                        .padding(horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = video.duration,
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Unlock Status Pill
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(
-                            if (isUnlocked) Color(0xFF059669) else Color(0xFFD97706)
+                    // Exam Category Badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = video.examCategory.ifBlank { "ಉದ್ಯೋಗ ತಯಾರಿ 2026" },
+                            color = Color(0xFFFDE047),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Center Play/Lock Icon
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(if (isUnlocked) Color(0xFFDC2626) else Color(0xFF0F172A).copy(alpha = 0.9f)),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(
-                            imageVector = if (isUnlocked) Icons.Default.LockOpen else Icons.Default.Lock,
+                            imageVector = if (isUnlocked) Icons.Default.PlayArrow else Icons.Default.Lock,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier.size(26.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                }
+
+                // Bottom bar: Views count and Duration badge
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Views badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.75f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
                         Text(
-                            text = if (isUnlocked) "UNLOCKED" else "WATCH AD TO UNLOCK",
+                            text = video.views,
+                            color = Color(0xFFE2E8F0),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Duration badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.85f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = video.duration,
                             color = Color.White,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Black
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

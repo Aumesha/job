@@ -83,18 +83,18 @@ fun UnityBannerAd(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
             .testTag("unity_banner_$placementId"),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFF1E2638)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp)
+                .padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             // Unity Ad Header Badge
             Row(
@@ -105,33 +105,33 @@ fun UnityBannerAd(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(3.dp))
                             .background(Color(0xFF00C9FF))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
                     ) {
                         Text(
                             text = "UNITY ADS",
                             color = Color.Black,
-                            fontSize = 10.sp,
+                            fontSize = 8.5.sp,
                             fontWeight = FontWeight.Black
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = if (config.isTestMode) "Test Mode (Preview)" else "Live",
                         color = if (config.isTestMode) Color(0xFFFBBF24) else Color(0xFF34D399),
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
                 Text(
                     text = placementId,
                     color = Color(0xFF94A3B8),
-                    fontSize = 9.sp
+                    fontSize = 8.5.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // Banner Creative Content
             Row(
@@ -140,8 +140,8 @@ fun UnityBannerAd(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(if (isMediumRectangle) 56.dp else 44.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(if (isMediumRectangle) 44.dp else 34.dp)
+                        .clip(RoundedCornerShape(6.dp))
                         .background(
                             Brush.linearGradient(
                                 listOf(Color(0xFF2563EB), Color(0xFF7C3AED))
@@ -153,17 +153,17 @@ fun UnityBannerAd(
                         imageVector = Icons.Default.Star,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Career Growth & Exam Prep 2026",
                         color = Color.White,
-                        fontSize = 13.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -171,24 +171,24 @@ fun UnityBannerAd(
                     Text(
                         text = "Get free mock tests & study materials for state exams",
                         color = Color(0xFFCBD5E1),
-                        fontSize = 11.sp,
+                        fontSize = 9.5.sp,
                         maxLines = if (isMediumRectangle) 2 else 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(5.dp))
                         .background(Color(0xFF00C9FF))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = "INSTALL",
                         color = Color.Black,
-                        fontSize = 11.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }

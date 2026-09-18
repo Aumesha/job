@@ -239,7 +239,7 @@ fun JobDetailScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // Category & Vacancy Pills
+                    // Portal Source & Vacancy Pills
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -248,12 +248,12 @@ fun JobDetailScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .background(Color(0xFF2563EB).copy(alpha = 0.12f))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = if (isKannada) article.category.labelKannada else article.category.labelEnglish,
-                                color = MaterialTheme.colorScheme.primary,
+                                text = article.portalSource.ifBlank { if (isKannada) article.category.labelKannada else article.category.labelEnglish },
+                                color = Color(0xFF1D4ED8),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )

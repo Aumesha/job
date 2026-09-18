@@ -60,11 +60,10 @@ class FreeJobsFeaturesTest {
     }
 
     @Test
-    fun `verify AppMenu covers jobs, videos and info`() {
+    fun `verify AppMenu covers jobs and videos`() {
         val menus = AppMenu.values()
-        assertEquals(3, menus.size)
+        assertEquals(2, menus.size)
         assertTrue(menus.contains(AppMenu.JOBS))
         assertTrue(menus.contains(AppMenu.VIDEOS))
-        assertTrue(menus.contains(AppMenu.INFO))
     }
 }

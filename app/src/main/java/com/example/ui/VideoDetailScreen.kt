@@ -31,7 +31,7 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.SmartDisplay
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -51,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -173,38 +175,65 @@ fun VideoDetailScreen(
                                 loadDataWithBaseURL("https://www.youtube.com", embedHtml, "text/html", "UTF-8", null)
                             }
                         },
+                        onRelease = { webView ->
+                            try {
+                                webView.stopLoading()
+                                webView.loadUrl("about:blank")
+                                webView.destroy()
+                            } catch (_: Exception) {}
+                        },
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    AsyncImage(
-                        model = video.thumbnailUrl,
-                        contentDescription = video.titleEnglish,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-
-                    // Dark gradient overlay
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.35f))
-                    )
-
-                    // Play Icon button
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFFF0000))
-                            .clickable { isPlayingInApp = true },
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xFF0F172A),
+                                        Color(0xFF1E293B),
+                                        Color(0xFF0B192C)
+                                    )
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play In-App",
-                            tint = Color.White,
-                            modifier = Modifier.size(36.dp)
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFDC2626))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = video.channelName,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            // Play Icon button
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFDC2626))
+                                    .clickable { isPlayingInApp = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Play In-App",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -269,7 +298,7 @@ fun VideoDetailScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.SmartDisplay,
+                                imageVector = Icons.Default.VideoLibrary,
                                 contentDescription = null,
                                 tint = Color(0xFFFF0000),
                                 modifier = Modifier.size(20.dp)
@@ -316,6 +345,30 @@ fun VideoDetailScreen(
                                 if (isKannada) "ಆ್ಯಪ್‌ನಲ್ಲೇ ಪ್ಲೇ ಮಾಡಿ (Play In-App)" else "Play Inside App"
                             },
                             fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedButton(
+                        onClick = { openYouTubeVideo(context, video.youtubeVideoId) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("open_in_youtube_app_button"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VideoLibrary,
+                            contentDescription = null,
+                            tint = Color(0xFFDC2626)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isKannada) "${video.channelName} ನಲ್ಲಿ ವೀಕ್ಷಿಸಿ" else "Watch on ${video.channelName}",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 13.sp
                         )
                     }
                 }

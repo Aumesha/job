@@ -12,6 +12,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.example.model.JobArticle
 import com.example.model.JobVideo
 import com.example.model.UnityAdConfig
@@ -24,11 +27,26 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        hideSystemNavigationBars()
         setContent {
             MyApplicationTheme {
                 FreeJobsApp()
             }
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemNavigationBars()
+        }
+    }
+
+    private fun hideSystemNavigationBars() {
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        insetsController.hide(WindowInsetsCompat.Type.navigationBars())
     }
 }
 
