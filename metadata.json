@@ -1,0 +1,6 @@
+{
+  "name": "Free Jobs",
+  "description": "ಖಾಸಗಿ ಮತ್ತು ಸರಕಾರಿ ಜಾಬ್ ಅಪ್‌ಡೇಟ್‌ಗಳು, ಕೆರಿಯರ್ ವೀಡಿಯೋಗಳು ಮತ್ತು ಜಾಹೀರಾತು ರಹಿತ ಆರ್ಟಿಕಲ್ ಮಾಹಿತಿ ಆ್ಯಪ್.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
